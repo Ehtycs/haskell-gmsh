@@ -3,7 +3,7 @@ version:             0.1.0.0
 -- synopsis:
 -- description:
 homepage:            https://github.com/githubuser/haskell-gmsh#readme
-license:             GPL2
+license:             GPL-2
 license-file:        LICENSE
 author:              Antero Marjamäki
 maintainer:          antero.marjamaki@tuni.fi
@@ -18,7 +18,8 @@ executable haskell-gmsh
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
-  build-tools:         c2hs
+  build-tool-depends:  c2hs:c2hs
   include-dirs:        gmsh/include
   extra-lib-dirs:      gmsh/lib
   extra-libraries:     gmsh
+  other-modules:       GmshAPI
