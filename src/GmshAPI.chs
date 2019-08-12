@@ -14,3 +14,40 @@ GNU General Public License ("LICENSE" file) for more details.
 -}
 
 module GmshAPI where
+
+import Control.Monad (liftM)
+import Foreign.C -- get the C types
+import Foreign.Ptr (Ptr,nullPtr)
+import Foreign.C.String (withCString)
+import Foreign.Marshal (alloca)
+import Foreign.Marshal.Utils (withMany)
+import Foreign.Marshal.Array (withArray)
+import Foreign.Storable (peek)
+import Data.Maybe (fromMaybe)
+
+
+#include "gmshc.h"
+
+{#context lib="gmsh" #}
+
+toInt :: Ptr CInt -> IO Int
+toInt = liftM fromIntegral . peek
+
+-- marshaller for argv type "char ** argv"
+argv :: [String] -> (Ptr CString -> IO a) -> IO a
+argv ss f = withMany withCString ss f'
+   where
+      -- my brain hurts but at least I can hear colors now
+      f' x = withArray x f
+
+{-
+GMSH_API void gmshInitialize(int argc, char ** argv,
+                             const int readConfigFiles,
+                             int * ierr);
+-}
+{#fun gmshInitialize as gmshInitialize
+    {  `Int'
+    , argv* `[String]' void-
+    ,  `Int'
+    , alloca- `Int' toInt*
+    } -> `()' #}
