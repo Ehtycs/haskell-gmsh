@@ -14,8 +14,13 @@ GNU General Public License ("LICENSE" file) for more details.
 -}
 module Main where
 
+import Control.Concurrent (runInBoundThread)
+
 import GmshAPI
 
 main :: IO ()
 main = do
-  putStrLn "hello world"
+  gmshInitialize 0 [] 0
+  gmshFltkRun
+  gmshFinalize
+  return ()

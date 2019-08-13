@@ -51,3 +51,13 @@ GMSH_API void gmshInitialize(int argc, char ** argv,
     ,  `Int'
     , alloca- `Int' toInt*
     } -> `()' #}
+
+{-GMSH_API void gmshFinalize(int * ierr);-}
+{#fun gmshFinalize as gmshFinalize
+   { alloca- `Int' toInt*
+   } -> `()' #}
+
+{-GMSH_API void gmshFltkRun(int * ierr);-}
+{#fun gmshFltkRun as gmshFltkRun
+   { alloca- `Int' toInt*
+   } -> `()' #}
