@@ -21,6 +21,8 @@ import GmshAPI
 main :: IO ()
 main = do
   gmshInitialize 0 [] 0
+  gmshModelGeoAddPoint 0.0 0.0 0.0 1.0 0
+  gmshModelGeoSynchronize
   gmshFltkRun
   gmshFinalize
   return ()

@@ -61,3 +61,23 @@ GMSH_API void gmshInitialize(int argc, char ** argv,
 {#fun gmshFltkRun as gmshFltkRun
    { alloca- `Int' toInt*
    } -> `()' #}
+
+{-GMSH_API int gmshModelGeoAddPoint(const double x,
+                                  const double y,
+                                  const double z,
+                                  const double meshSize,
+                                  const int tag,
+                                  int * ierr);-}
+{#fun gmshModelOccAddPoint as gmshModelGeoAddPoint
+   { `Double'
+   , `Double'
+   , `Double'
+   , `Double'
+   , `Int'
+   , alloca- `Int' toInt*
+   } -> `()' #}
+
+{-GMSH_API void gmshModelGeoSynchronize(int * ierr);-}
+{#fun gmshModelOccSynchronize as gmshModelGeoSynchronize
+   { alloca- `Int' toInt*
+   } -> `()' #}
