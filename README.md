@@ -6,6 +6,16 @@ researched.
 
 # Notes and pitfalls
 
+## GMSH library and C-header
+GMSH is now imported from a system location, if you have it in some unorthodox location, add following lines to your "~/.stack/config.yaml".
+
+```
+extra-lib-dirs:
+    - <path-to-lib-dir>
+extra-include-dirs:
+    - <path-to-include-dir>
+```
+
 ## Run GUI functions only in main thread
 Ghci by default executes computations in separate threads. Gmsh's FLTK GUI
 requires that certain C functions need to be called only on the main thread.
