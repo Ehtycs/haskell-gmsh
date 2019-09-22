@@ -19,4 +19,4 @@ library
   build-depends:       base >= 4.7 && < 5
   build-tool-depends:  c2hs:c2hs
   extra-libraries:     gmsh
-  exposed-modules:     GmshAPI
+  exposed-modules:     GmshAPIManual

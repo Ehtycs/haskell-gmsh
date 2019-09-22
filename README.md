@@ -1,8 +1,9 @@
 # haskell-gmsh
 
 This module implements Haskell bindings to Gmsh C API. It's a work in progress.
-Currently the possibility of generating the API definition automatically is
-researched.
+
+### Update 22.9.2019
+The best-ish approach seems to be to manually write marshalling functions which can be used together with the modified GMSH API generator. Since all types are built-in types, it is hopefully simpler than using FFI generating tools and gives more control on how to handle e.g. errors and default arguments.
 
 # Notes and pitfalls
 
@@ -17,8 +18,7 @@ extra-include-dirs:
 ```
 
 ## Run GUI functions only in main thread
-Ghci by default executes computations in separate threads. Gmsh's FLTK GUI
-requires that certain C functions need to be called only on the main thread.
+Ghci by default executes computations in separate threads. Gmsh's FLTK GUI requires that certain C functions need to be called only on the main thread.
 
 In order to invoke the GUI (gmshFltk*) run ghci with "-fno-ghci-sandbox" flag.
 https://stackoverflow.com/questions/14307789/cant-get-wxhaskell-to-work-from-ghci-on-mac

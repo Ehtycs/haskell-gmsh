@@ -16,7 +16,7 @@ module Main where
 
 import Control.Concurrent (runInBoundThread)
 
-import GmshAPI
+import GmshAPIManual
 
 main :: IO ()
 main = do
@@ -24,5 +24,5 @@ main = do
   gmshModelGeoAddPoint 0.0 0.0 0.0 1.0 0
   gmshModelGeoSynchronize
   gmshFltkRun
-  gmshFinalize
+  --gmshFinalize
   return ()
