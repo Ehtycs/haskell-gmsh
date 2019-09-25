@@ -16,14 +16,16 @@ GNU General Public License ("LICENSE" file) for more details.
 module GmshAPIManual where
 
 import Control.Monad (liftM)
+import Control.Applicative ((<$>))
 import Foreign.C -- get the C types
 import Foreign.Ptr (Ptr,nullPtr)
 import Foreign.C.String (withCString)
 import Foreign.Marshal (alloca)
 import Foreign.Marshal.Utils (withMany)
-import Foreign.Marshal.Array (withArray)
+import Foreign.Marshal.Array (withArray, peekArray)
 import Foreign.Storable (peek)
 import Data.Maybe (fromMaybe)
+import Debug.Trace (trace)
 
 
 --include "gmshc.h"
@@ -55,7 +57,6 @@ foreign import ccall unsafe "gmshc.h gmshInitialize"
                   -> Ptr CInt
                   -> IO()
 
--- gmshModelGeoAddPoint 0.0 0.0 0.0 1.0 0
 gmshModelGeoAddPoint :: Double -> Double -> Double -> Double -> Int -> IO(Int)
 gmshModelGeoAddPoint x y z c tag = do
   let x' = realToFrac x
@@ -96,3 +97,34 @@ gmshFltkRun = do
 
 foreign import ccall unsafe "gmshc.h gmshFltkRun"
   cgmshFltkRun :: Ptr CInt -> IO()
+
+
+-- Process a flat list to a list of 2 tuples
+-- World explodes if this is fed with a list with odd length
+flatTo2Tuple :: [a] -> [(a, a)]
+flatTo2Tuple (x:y:[]) = [(x,y)]
+flatTo2Tuple (x:y:xs) = (x,y) : flatTo2Tuple xs
+
+-- Ptr (Ptr CInt) is a serialized list of integers, i.e.
+-- **int is a pointer to an array, not an array of arrays... D'OH!
+peekDimTags :: Int -> Ptr (Ptr CInt) -> IO([(Int, Int)])
+peekDimTags ndimTags arr  = do
+  arr' <- peek arr
+  dimTags <- peekArray ndimTags arr'
+  return $ flatTo2Tuple $ map fromIntegral dimTags
+
+gmshModelGetEntities :: Int -> IO([(Int, Int)], Int)
+gmshModelGetEntities dim = do
+  let dim' = fromIntegral dim
+  alloca $ \errptr -> do
+    alloca $ \ndimTags -> do
+      alloca $ \dimTags -> do
+        cgmshModelGetEntities dimTags ndimTags dim' errptr
+        errcode <- (fromIntegral <$> (peek errptr))
+        ndimTags' <- peek ndimTags
+        dimTags' <- peekDimTags (fromIntegral ndimTags') dimTags
+        print dimTags'
+        return (dimTags', errcode)
+
+foreign import ccall unsafe "gmshc.h gmshModelGetEntities"
+ cgmshModelGetEntities :: Ptr (Ptr CInt) -> Ptr CInt -> CInt -> Ptr CInt -> IO()
