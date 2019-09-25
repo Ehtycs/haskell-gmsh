@@ -21,8 +21,12 @@ import GmshAPIManual
 main :: IO ()
 main = do
   gmshInitialize 0 [] 0
-  gmshModelGeoAddPoint 0.0 0.0 0.0 1.0 0
+  gmshModelGeoAddPoint 0.0 0.0 0.0 1.0 1
+  gmshModelGeoAddPoint 1.0 1.0 1.0 1.0 2
   gmshModelGeoSynchronize
+  (dimtags, errcode) <- gmshModelGetEntities 0
+  print errcode
+  print dimtags
   gmshFltkRun
   --gmshFinalize
   return ()
