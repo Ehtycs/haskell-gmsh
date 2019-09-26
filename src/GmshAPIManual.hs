@@ -23,12 +23,12 @@ import Foreign.C.String (withCString)
 import Foreign.Marshal (alloca)
 import Foreign.Marshal.Utils (withMany)
 import Foreign.Marshal.Array (withArray, peekArray)
-import Foreign.Storable (peek)
+import Foreign.Storable (peek, Storable)
 import Data.Maybe (fromMaybe)
 import Debug.Trace (trace)
 
 --import qualified Data.Vector.Storable as VS
-import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as V
 
 
 --include "gmshc.h"
@@ -40,7 +40,6 @@ toInt = liftM fromIntegral . peek
 argv :: [String] -> (Ptr CString -> IO a) -> IO a
 argv ss f = withMany withCString ss f'
    where
-      -- my brain hurts but at least I can hear colors now
       f' x = withArray x f
 
 gmshInitialize :: Int -> [String] -> Int -> IO(Int)
@@ -73,13 +72,14 @@ gmshModelGeoAddPoint x y z c tag = do
     return $ fromIntegral errcode
 
 foreign import ccall unsafe "gmshc.h gmshModelGeoAddPoint"
-  cgmshModelGeoAddPoint :: CDouble
-                        -> CDouble
-                        -> CDouble
-                        -> CDouble
-                        -> CInt
-                        -> Ptr CInt
-                        -> IO()
+  cgmshModelGeoAddPoint
+    :: CDouble
+    -> CDouble
+    -> CDouble
+    -> CDouble
+    -> CInt
+    -> Ptr CInt
+    -> IO()
 
 gmshModelGeoSynchronize :: IO(Int)
 gmshModelGeoSynchronize = do
@@ -101,10 +101,16 @@ gmshFltkRun = do
 foreign import ccall unsafe "gmshc.h gmshFltkRun"
   cgmshFltkRun :: Ptr CInt -> IO()
 
-flatTo2Tuple :: V.Vector a -> V.Vector (a,a)
-flatTo2Tuple xs = V.zip xs (V.tail xs)
+-- convert a vector of things into a vector of pairs
+-- maybe a better way to do it in the future
+flatTo2Tuple :: V.Unbox a => V.Vector a -> V.Vector (a,a)
+flatTo2Tuple xs = V.ifilter (\i _ -> even i) $ V.zip xs (V.tail xs)
 
-peekVector len arr = V.fromList <$> peekArray len arr
+-- Peek a c array into a vector of numeric things
+peekVector
+  :: (V.Unbox a, Num a, Integral b, Storable b)
+  => Int -> Ptr b -> IO(V.Vector a)
+peekVector len arr = V.fromList <$> map fromIntegral <$> peekArray len arr
 
 -- Ptr (Ptr CInt) is a serialized list of integers, i.e.
 -- **int is a pointer to an array, not an array of arrays... D'OH!
@@ -112,7 +118,7 @@ peekDimTags :: Int -> Ptr (Ptr CInt) -> IO(V.Vector (Int, Int))
 peekDimTags ndimTags arr  = do
   arr' <- peek arr
   dimTags <- peekVector ndimTags arr'
-  return $ flatTo2Tuple $ fmap fromIntegral dimTags
+  return $ flatTo2Tuple dimTags -- $ V.map fromIntegral dimTags
 
 gmshModelGetEntities :: Int -> IO(V.Vector (Int, Int), Int)
 gmshModelGetEntities dim = do
