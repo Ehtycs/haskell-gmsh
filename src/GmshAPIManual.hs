@@ -27,6 +27,9 @@ import Foreign.Storable (peek)
 import Data.Maybe (fromMaybe)
 import Debug.Trace (trace)
 
+--import qualified Data.Vector.Storable as VS
+import qualified Data.Vector as V
+
 
 --include "gmshc.h"
 
@@ -98,22 +101,20 @@ gmshFltkRun = do
 foreign import ccall unsafe "gmshc.h gmshFltkRun"
   cgmshFltkRun :: Ptr CInt -> IO()
 
+flatTo2Tuple :: V.Vector a -> V.Vector (a,a)
+flatTo2Tuple xs = V.zip xs (V.tail xs)
 
--- Process a flat list to a list of 2 tuples
--- World explodes if this is fed with a list with odd length
-flatTo2Tuple :: [a] -> [(a, a)]
-flatTo2Tuple (x:y:[]) = [(x,y)]
-flatTo2Tuple (x:y:xs) = (x,y) : flatTo2Tuple xs
+peekVector len arr = V.fromList <$> peekArray len arr
 
 -- Ptr (Ptr CInt) is a serialized list of integers, i.e.
 -- **int is a pointer to an array, not an array of arrays... D'OH!
-peekDimTags :: Int -> Ptr (Ptr CInt) -> IO([(Int, Int)])
+peekDimTags :: Int -> Ptr (Ptr CInt) -> IO(V.Vector (Int, Int))
 peekDimTags ndimTags arr  = do
   arr' <- peek arr
-  dimTags <- peekArray ndimTags arr'
-  return $ flatTo2Tuple $ map fromIntegral dimTags
+  dimTags <- peekVector ndimTags arr'
+  return $ flatTo2Tuple $ fmap fromIntegral dimTags
 
-gmshModelGetEntities :: Int -> IO([(Int, Int)], Int)
+gmshModelGetEntities :: Int -> IO(V.Vector (Int, Int), Int)
 gmshModelGetEntities dim = do
   let dim' = fromIntegral dim
   alloca $ \errptr -> do
