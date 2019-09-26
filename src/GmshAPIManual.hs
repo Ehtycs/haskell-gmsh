@@ -103,24 +103,28 @@ foreign import ccall unsafe "gmshc.h gmshFltkRun"
 
 -- convert a vector of things into a vector of pairs
 -- maybe a better way to do it in the future
-flatTo2Tuple :: V.Unbox a => V.Vector a -> V.Vector (a,a)
-flatTo2Tuple xs = V.ifilter (\i _ -> even i) $ V.zip xs (V.tail xs)
+-- flatTo2Tuple :: V.Unbox a => V.Vector a -> V.Vector (a,a)
+-- flatTo2Tuple xs = V.ifilter (\i _ -> even i) $ V.zip xs (V.tail xs)
+--
+-- -- Peek a c array into a vector of numeric things
+-- peekVector
+--   :: (V.Unbox a, Num a, Integral b, Storable b)
+--   => Int -> Ptr b -> IO(V.Vector a)
+-- peekVector len arr = V.fromList <$> map fromIntegral <$> peekArray len arr
 
--- Peek a c array into a vector of numeric things
-peekVector
-  :: (V.Unbox a, Num a, Integral b, Storable b)
-  => Int -> Ptr b -> IO(V.Vector a)
-peekVector len arr = V.fromList <$> map fromIntegral <$> peekArray len arr
+flatTo2Tuple :: [a] -> [(a,a)]
+flatTo2Tuple (x:y:[]) = [(x,y)]
+flatTo2Tuple (x:y:xs) = (x,y) : flatTo2Tuple xs
 
 -- Ptr (Ptr CInt) is a serialized list of integers, i.e.
 -- **int is a pointer to an array, not an array of arrays... D'OH!
-peekDimTags :: Int -> Ptr (Ptr CInt) -> IO(V.Vector (Int, Int))
+peekDimTags :: Int -> Ptr (Ptr CInt) -> IO([(Int, Int)])
 peekDimTags ndimTags arr  = do
   arr' <- peek arr
-  dimTags <- peekVector ndimTags arr'
-  return $ flatTo2Tuple dimTags -- $ V.map fromIntegral dimTags
+  dimTags <- peekArray ndimTags arr'
+  return $ flatTo2Tuple $ map fromIntegral dimTags
 
-gmshModelGetEntities :: Int -> IO(V.Vector (Int, Int), Int)
+gmshModelGetEntities :: Int -> IO([(Int, Int)], Int)
 gmshModelGetEntities dim = do
   let dim' = fromIntegral dim
   alloca $ \errptr -> do
