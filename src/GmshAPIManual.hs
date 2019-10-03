@@ -247,3 +247,34 @@ gmshModelGetEntities dim = do
 
 foreign import ccall unsafe "gmshc.h gmshModelGetEntities"
   cgmshModelGetEntities :: Ptr (Ptr CInt) -> Ptr CInt -> CInt -> Ptr CInt -> IO()
+
+
+{-  GMSH_API int gmshModelOccAddDisk(const double xc,
+                                   const double yc,
+                                   const double zc,
+                                   const double rx,
+                                   const double ry,
+                                   const int tag,
+                                   int * ierr);-}
+
+gmshOccAddDisk
+  :: Double -> Double -> Double
+  -> Double -> Double
+  -> Int -> IO()
+gmshOccAddDisk xc yc zc rx ry tag = do
+  let xc' = realToFrac xc
+  let yc' = realToFrac yc
+  let zc' = realToFrac zc
+  let rx' = realToFrac rx
+  let ry' = realToFrac ry
+  let tag' = fromIntegral tag
+  alloca $ \errptr -> do
+    cgmshModelOccAddDisk xc' yc' zc' rx' ry' tag' errptr
+    checkErrorCodeAndThrow "gmshOccAddDisk" errptr
+    return ()
+
+foreign import ccall unsafe "gmshc.h gmshModelOccAddDisk"
+ cgmshModelOccAddDisk
+  :: CDouble -> CDouble -> CDouble
+  -> CDouble -> CDouble
+  -> CInt -> Ptr CInt -> IO()
