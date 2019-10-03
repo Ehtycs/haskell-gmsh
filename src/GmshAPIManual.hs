@@ -22,7 +22,7 @@ import Foreign.Ptr (Ptr,nullPtr)
 import Foreign.C.String (withCString)
 import Foreign.Marshal (alloca)
 import Foreign.Marshal.Utils (withMany)
-import Foreign.Marshal.Array (withArray, peekArray)
+import Foreign.Marshal.Array (withArray, peekArray, advancePtr, withArrayLen)
 import Foreign.Storable (peek, Storable)
 import Data.Maybe (fromMaybe)
 import Debug.Trace (trace)
@@ -37,20 +37,23 @@ toInt :: Ptr CInt -> IO Int
 toInt = liftM fromIntegral . peek
 
 -- marshaller for argv type "char ** argv"
-argv :: [String] -> (Ptr CString -> IO a) -> IO a
-argv ss f = withMany withCString ss f'
+withArgv :: [String] -> (Ptr CString -> IO a) -> IO a
+withArgv ss f = withMany withCString ss f'
    where
       f' x = withArray x f
 
-gmshInitialize :: Int -> [String] -> Int -> IO(Int)
+
+
+
+gmshInitialize :: Int -> [String] -> Int -> IO()
 gmshInitialize argc ss readConfigFiles = do
   let argc' = fromIntegral argc
   let readConfigFiles' = fromIntegral readConfigFiles
-  argv ss $ \argv' -> do
+  withArgv ss $ \argv' -> do
     alloca $ \errptr -> do
       cgmshInitialize argc' argv' readConfigFiles' errptr
-      errcode <- peek errptr
-      return $ fromIntegral errcode
+      checkErrorCodeAndThrow "gmshInitialize" errptr
+      return ()
 
 foreign import ccall unsafe "gmshc.h gmshInitialize"
   cgmshInitialize :: CInt
@@ -59,7 +62,7 @@ foreign import ccall unsafe "gmshc.h gmshInitialize"
                   -> Ptr CInt
                   -> IO()
 
-gmshModelGeoAddPoint :: Double -> Double -> Double -> Double -> Int -> IO(Int)
+gmshModelGeoAddPoint :: Double -> Double -> Double -> Double -> Int -> IO()
 gmshModelGeoAddPoint x y z c tag = do
   let x' = realToFrac x
   let y' = realToFrac y
@@ -68,8 +71,8 @@ gmshModelGeoAddPoint x y z c tag = do
   let tag' = fromIntegral tag
   alloca $ \errptr -> do
     cgmshModelGeoAddPoint x' y' z' c' tag' errptr
-    errcode <- peek errptr
-    return $ fromIntegral errcode
+    checkErrorCodeAndThrow "gmshModelGeoAddPoint" errptr
+    return ()
 
 foreign import ccall unsafe "gmshc.h gmshModelGeoAddPoint"
   cgmshModelGeoAddPoint
@@ -81,22 +84,22 @@ foreign import ccall unsafe "gmshc.h gmshModelGeoAddPoint"
     -> Ptr CInt
     -> IO()
 
-gmshModelGeoSynchronize :: IO(Int)
+gmshModelGeoSynchronize :: IO()
 gmshModelGeoSynchronize = do
   alloca $ \errptr -> do
     cgmshModelGeoSynchronize errptr
-    errcode <- peek errptr
-    return $ fromIntegral errcode
+    checkErrorCodeAndThrow "gmshModelGeoSynchronize" errptr
+    return ()
 
 foreign import ccall unsafe "gmshc.h gmshModelGeoSynchronize"
   cgmshModelGeoSynchronize :: Ptr CInt -> IO()
 
-gmshFltkRun :: IO(Int)
+gmshFltkRun :: IO()
 gmshFltkRun = do
   alloca $ \errptr -> do
     cgmshFltkRun errptr
-    errcode <- peek errptr
-    return $ fromIntegral errcode
+    checkErrorCodeAndThrow "gmshFltkRun" errptr
+    return ()
 
 foreign import ccall unsafe "gmshc.h gmshFltkRun"
   cgmshFltkRun :: Ptr CInt -> IO()
@@ -112,30 +115,135 @@ foreign import ccall unsafe "gmshc.h gmshFltkRun"
 --   => Int -> Ptr b -> IO(V.Vector a)
 -- peekVector len arr = V.fromList <$> map fromIntegral <$> peekArray len arr
 
-flatTo2Tuple :: [a] -> [(a,a)]
-flatTo2Tuple (x:y:[]) = [(x,y)]
-flatTo2Tuple (x:y:xs) = (x,y) : flatTo2Tuple xs
+-- Check the error code (peek from the pointer) and throw an error
+-- if it's not zero.
+peekInt :: Ptr CInt -> IO(Int)
+peekInt = liftM fromIntegral . peek
+
+
+flatToPairs :: [a] -> [(a,a)]
+flatToPairs (x:y:[]) = [(x,y)]
+flatToPairs (x:y:xs) = (x,y) : flatToPairs xs
+
+pairsToFlat :: [(a,a)] -> [a]
+pairsToFlat lst = reverse $ foldl (\acc (a,b) -> b:a:acc) [] lst
+
 
 -- Ptr (Ptr CInt) is a serialized list of integers, i.e.
 -- **int is a pointer to an array, not an array of arrays... D'OH!
-peekDimTags :: Int -> Ptr (Ptr CInt) -> IO([(Int, Int)])
-peekDimTags ndimTags arr  = do
-  arr' <- peek arr
-  dimTags <- peekArray ndimTags arr'
-  return $ flatTo2Tuple $ map fromIntegral dimTags
+peekArrayPairs :: Ptr CInt -> Ptr (Ptr CInt) -> IO([(Int, Int)])
+peekArrayPairs nptr arrptr  = do
+  npairs <- peekInt nptr
+  arr <- peek arrptr
+  flatpairs <- peekArray npairs arr
+  return $ flatToPairs $ map fromIntegral flatpairs
 
-gmshModelGetEntities :: Int -> IO([(Int, Int)], Int)
+--foldfun :: ([[(CInt, CInt)]], Ptr (Ptr CInt))
+-- -> Int -> IO([[(CInt, CInt)]], Ptr (Ptr CInt))
+
+peekArrayArrayPairs
+  :: Ptr CInt
+  -> Ptr (Ptr CInt)
+  -> Ptr (Ptr (Ptr CInt))
+  -> IO([[(Int, Int)]])
+peekArrayArrayPairs lengthLengthsPtr lengthsPtr arrPtr  =
+  do
+    nlengths <- peekInt lengthLengthsPtr
+    lengthsArr <- peek lengthsPtr
+    lengthsList <- peekArray nlengths lengthsArr
+    arrptr <- peek arrPtr
+    -- okay, so. fold over lengthsList.
+    -- For each element dereference the pointer
+    -- then peek n elements from the array, then advance the outer pointer
+    -- accumulate the list of peeked lists, and the advanced pointer
+    (pairs,_) <- foldl foldfun (return ([], arrptr)) $ map fromIntegral lengthsList
+    return pairs
+
+  where
+    -- foldfun takes the previous IO action and runs it,
+    -- then proceeds to peek and advance ptrs and wraps the results
+    -- in a tuple
+    foldfun action n = do
+        (acc, ptr) <- action
+        aptr <- peek ptr
+        lst <- peekArray n aptr
+        let pairss = flatToPairs $ map fromIntegral lst
+        let newptr = advancePtr ptr 1
+        return ((pairss:acc), newptr)
+
+
+
+checkErrorCodeAndThrow :: String -> Ptr CInt -> IO()
+checkErrorCodeAndThrow funname errptr = do
+  errcode <- peekInt errptr
+  if errcode == 0
+      then return ()
+      else error $ funname ++ " returned nonzero error code: " ++ show errcode
+
+{-
+GMSH_API void gmshModelOccFuse(int * objectDimTags, size_t objectDimTags_n,
+                               int * toolDimTags, size_t toolDimTags_n,
+                               int ** outDimTags, size_t * outDimTags_n,
+                               int *** outDimTagsMap, size_t ** outDimTagsMap_n, size_t *outDimTagsMap_nn,
+                               const int tag,
+                               const int removeObject,
+                               const int removeTool,
+                               int * ierr);
+-}
+
+
+gmshModelOccFuse
+  :: [(Int, Int)]
+  -> [(Int, Int)]
+  -> Int
+  -> Int
+  -> Int
+  -> IO([(Int, Int)], [[(Int, Int)]])
+gmshModelOccFuse objectDimTags toolDimTags tag removeObject removeTool = do
+  let tag' = fromIntegral tag
+  let removeObject' = fromIntegral removeObject
+  let removeTool' = fromIntegral removeTool
+  let objectDimTags' = map fromIntegral $ pairsToFlat objectDimTags
+  let toolDimTags' = map fromIntegral $ pairsToFlat toolDimTags
+  alloca $ \noutDimTagsPtr -> do
+    alloca $ \outDimTagsPtr -> do
+      alloca $ \nnoutDimTagsMapPtr -> do
+        alloca $ \noutDimTagsMapPtr -> do
+          alloca $ \outDimTagsMapPtr-> do
+            alloca $ \errptr -> do
+                withArrayLen objectDimTags' $ \nobjectDimTags objectDimTagsPtr -> do
+                    withArrayLen toolDimTags' $ \ntoolDimTags toolDimTagsPtr -> do
+                      let nobjectDimTags' = fromIntegral nobjectDimTags
+                      let ntoolDimTags' = fromIntegral ntoolDimTags
+                      cgmshModelOccFuse objectDimTagsPtr nobjectDimTags' toolDimTagsPtr ntoolDimTags' outDimTagsPtr noutDimTagsPtr outDimTagsMapPtr nnoutDimTagsMapPtr noutDimTagsMapPtr tag' removeObject' removeTool' errptr
+                      checkErrorCodeAndThrow "gmshModelOccFuse" errptr
+                      outDimTags <- peekArrayPairs noutDimTagsPtr outDimTagsPtr
+                      outDimTagsMap <- peekArrayArrayPairs noutDimTagsMapPtr nnoutDimTagsMapPtr outDimTagsMapPtr
+
+                      return (outDimTags, outDimTagsMap)
+
+foreign import ccall unsafe "gmshc.h gmshModelOccFuse"
+  cgmshModelOccFuse
+    :: Ptr CInt -> CInt
+    -> Ptr CInt -> CInt
+    -> Ptr (Ptr CInt) -> Ptr CInt
+    -> Ptr (Ptr (Ptr CInt)) -> Ptr (Ptr CInt) -> Ptr CInt
+    -> CInt
+    -> CInt
+    -> CInt
+    -> Ptr CInt
+    -> IO()
+
+gmshModelGetEntities :: Int -> IO([(Int, Int)])
 gmshModelGetEntities dim = do
   let dim' = fromIntegral dim
-  alloca $ \errptr -> do
+  alloca $ \dimTags -> do
     alloca $ \ndimTags -> do
-      alloca $ \dimTags -> do
+      alloca $ \errptr -> do
         cgmshModelGetEntities dimTags ndimTags dim' errptr
-        errcode <- (fromIntegral <$> (peek errptr))
-        ndimTags' <- peek ndimTags
-        dimTags' <- peekDimTags (fromIntegral ndimTags') dimTags
-        print dimTags'
-        return (dimTags', errcode)
+        checkErrorCodeAndThrow "gmshModelGetEntities" errptr
+        dimTags' <- peekArrayPairs ndimTags dimTags
+        return dimTags'
 
 foreign import ccall unsafe "gmshc.h gmshModelGetEntities"
- cgmshModelGetEntities :: Ptr (Ptr CInt) -> Ptr CInt -> CInt -> Ptr CInt -> IO()
+  cgmshModelGetEntities :: Ptr (Ptr CInt) -> Ptr CInt -> CInt -> Ptr CInt -> IO()

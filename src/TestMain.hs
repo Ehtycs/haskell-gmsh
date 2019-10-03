@@ -24,9 +24,7 @@ main = do
   gmshModelGeoAddPoint 0.0 0.0 0.0 1.0 1
   gmshModelGeoAddPoint 1.0 1.0 1.0 1.0 2
   gmshModelGeoSynchronize
-  (dimtags, errcode) <- gmshModelGetEntities 0
-  print errcode
-  print dimtags
+  dimtags <- gmshModelGetEntities 0
   gmshFltkRun
   --gmshFinalize
   return ()
