@@ -62,20 +62,20 @@ foreign import ccall unsafe "gmshc.h gmshInitialize"
                   -> Ptr CInt
                   -> IO()
 
-gmshModelGeoAddPoint :: Double -> Double -> Double -> Double -> Int -> IO()
-gmshModelGeoAddPoint x y z c tag = do
+gmshModelOccAddPoint :: Double -> Double -> Double -> Double -> Int -> IO()
+gmshModelOccAddPoint x y z c tag = do
   let x' = realToFrac x
   let y' = realToFrac y
   let z' = realToFrac z
   let c' = realToFrac c
   let tag' = fromIntegral tag
   alloca $ \errptr -> do
-    cgmshModelGeoAddPoint x' y' z' c' tag' errptr
-    checkErrorCodeAndThrow "gmshModelGeoAddPoint" errptr
+    cgmshModelOccAddPoint x' y' z' c' tag' errptr
+    checkErrorCodeAndThrow "gmshModelOccAddPoint" errptr
     return ()
 
-foreign import ccall unsafe "gmshc.h gmshModelGeoAddPoint"
-  cgmshModelGeoAddPoint
+foreign import ccall unsafe "gmshc.h gmshModelOccAddPoint"
+  cgmshModelOccAddPoint
     :: CDouble
     -> CDouble
     -> CDouble
@@ -84,15 +84,15 @@ foreign import ccall unsafe "gmshc.h gmshModelGeoAddPoint"
     -> Ptr CInt
     -> IO()
 
-gmshModelGeoSynchronize :: IO()
-gmshModelGeoSynchronize = do
+gmshModelOccSynchronize :: IO()
+gmshModelOccSynchronize = do
   alloca $ \errptr -> do
-    cgmshModelGeoSynchronize errptr
-    checkErrorCodeAndThrow "gmshModelGeoSynchronize" errptr
+    cgmshModelOccSynchronize errptr
+    checkErrorCodeAndThrow "gmshModelOccSynchronize" errptr
     return ()
 
-foreign import ccall unsafe "gmshc.h gmshModelGeoSynchronize"
-  cgmshModelGeoSynchronize :: Ptr CInt -> IO()
+foreign import ccall unsafe "gmshc.h gmshModelOccSynchronize"
+  cgmshModelOccSynchronize :: Ptr CInt -> IO()
 
 gmshFltkRun :: IO()
 gmshFltkRun = do
@@ -122,6 +122,7 @@ peekInt = liftM fromIntegral . peek
 
 
 flatToPairs :: [a] -> [(a,a)]
+flatToPairs [] = []
 flatToPairs (x:y:[]) = [(x,y)]
 flatToPairs (x:y:xs) = (x,y) : flatToPairs xs
 
@@ -257,11 +258,11 @@ foreign import ccall unsafe "gmshc.h gmshModelGetEntities"
                                    const int tag,
                                    int * ierr);-}
 
-gmshOccAddDisk
+gmshModelOccAddDisk
   :: Double -> Double -> Double
   -> Double -> Double
   -> Int -> IO()
-gmshOccAddDisk xc yc zc rx ry tag = do
+gmshModelOccAddDisk xc yc zc rx ry tag = do
   let xc' = realToFrac xc
   let yc' = realToFrac yc
   let zc' = realToFrac zc

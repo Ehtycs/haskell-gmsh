@@ -21,10 +21,17 @@ import GmshAPIManual
 main :: IO ()
 main = do
   gmshInitialize 0 [] 0
-  gmshModelGeoAddPoint 0.0 0.0 0.0 1.0 1
-  gmshModelGeoAddPoint 1.0 1.0 1.0 1.0 2
-  gmshModelGeoSynchronize
-  dimtags <- gmshModelGetEntities 0
+--  gmshModelOccAddPoint 0.0 0.0 0.0 1.0 1
+--  gmshModelOccAddPoint 1.0 1.0 1.0 1.0 2
+  gmshModelOccAddDisk 0.0 0.0 0.0 1.0 1.0 1
+  gmshModelOccAddDisk 0.5 0.0 0.0 1.0 1.0 2
+  gmshModelOccSynchronize
+  (outDimTags, outDimTagsMap) <- gmshModelOccFuse [(2,1)] [(2,2)] (-1) (-1) (-1)
+  print outDimTags
+  print outDimTagsMap
+  gmshModelOccSynchronize
+--  dimtags <- gmshModelGetEntities 0
+
   gmshFltkRun
   --gmshFinalize
   return ()
