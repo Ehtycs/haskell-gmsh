@@ -18,6 +18,7 @@
 
 
 class arg:
+    output = False
     def __init__(self, name, value=None,  python_value=None, julia_value=None):
         self.name = name
         self.value = value
@@ -84,47 +85,71 @@ class ivectorvectordouble(arg):
 # output types
 
 class oint(iint):
-    pass
+    output = True
+    htype = "Int"
+    ctype = "Ptr CInt"
 
 class osize(isize):
-    pass
+    output = True
+    htype = "Int"
+    ctype = "Ptr CInt"
 
 class odouble(idouble):
-    pass
+    output = True
+    htype = "Double"
+    ctype = "Ptr CDouble"
 
 class ostring(istring):
-    pass
+    output = True
+    htype = "String"
+    ctype = "Ptr CString"
 
 class ovectorint(ivectorint):
-    pass
+    output = True
+    htype = "[Int]"
+    ctype = "Ptr CInt"
 
 class ovectorsize(ivectorsize):
-    pass
+    output = True
+    htype = "[Int]"
+    ctype = "Ptr CInt"
 
 class ovectordouble(ivectordouble):
-    pass
+    output = True
+    htype = "[Double]"
+    ctype = "Ptr CDouble"
 
 class ovectorstring(ivectorstring):
-    pass
+    output = True
+    htype = "[String]"
+    ctype = "Ptr CString"
 
 class ovectorpair(ivectorpair):
-    pass
+    output = True
+    htype = "Int"
+    ctype = "Ptr CInt"
 
 # Not used
 # class ovectorvectorint(ivectorvectorint):
-#     pass
+#     output = True
 
 class ovectorvectorsize(ivectorvectorsize):
-    pass
+    output = True
+    htype = "[[Int]]"
+    ctype = "Ptr (Ptr CInt)"
 
 class ovectorvectordouble(ivectorvectordouble):
-    pass
+    output = True
+    htype = "[[Double]]"
+    ctype = "Ptr (Ptr CDouble)"
 
 class ovectorvectorpair(arg):
+    output = True
     htype = "[[(Int, Int)]]"
     ctype = "Ptr (Ptr (Ptr Int))"
 
 class argcargv():
+    output = False
     def __init__(self, *args):
         self.name = "argv"
         self.htype = "argv* `[String]' void-"
@@ -142,6 +167,36 @@ class Function:
         self.doc = doc
         self.special = special
 
+    def to_string(self, prefix):
+        return "\n".join([self.str_type_signature(prefix),
+                          self.str_foreignexp(prefix)])
+
+    def str_type_signature(self, prefix):
+        """ Generate the type signature for the haskell function
+        Input variables need to be present, output variables are wrapped
+        in the IO action.
+        Example:
+
+        gmshModelGetEntities :: Int -> IO([(Int, Int)]) """
+
+        """ ATTENTION: the vector sizes are not present in the
+        api_gen.py. Probably need to refactor this to
+        the argument class (argument class needs to create
+        a string for itself, only it knows when extra sizes are present
+        in the c call.) """
+        fname = prefix  + camelcasify(self.name)
+        inputs = [a for a in self.args if a.output]
+        outputs = [a for a in self.args if not a.output]
+
+        itypesign = " -> ".join([a.htype for a in inputs])
+        if(len(itypesign) > 0):
+            itypesign += " -> "
+
+        otypesign = ", ".join([a.htype for a in outputs])
+
+        return "".join([fname, " :: ",  itypesign, "IO(", otypesign, ")"])
+
+
     def str_foreignexp(self, prefix):
         """
         Generates the foreign import statement for the function, as a string.
@@ -157,21 +212,22 @@ class Function:
             -> IO()
 
         """
+        """ ATTENTION: the vector sizes are not present in the
+        api_gen.py. Probably need to refactor this to
+        the argument class (argument class needs to create
+        a string for itself, only it knows when extra sizes are present
+        in the c call.) """
+
         fname = prefix + camelcasify(self.name)
         lines = ["foreign import ccall unsafe \"gmshc.h {}\"".format(fname)]
         lines.append("   {}".format("c"+fname))
 
-        # print arguments (c types) if any
-        if len(self.args) > 0:
-            lines.append("      :: {}".format(self.args[0].ctype))
-            for a in self.args[1:]:
-                lines.append("      -> {}".format(self.args[0].ctype))
-        else:
-            # if we have return type stuff it in the IO
-            if self.return_type is None:
-                lines.append("      :: IO()")
-            else:
-                lines.append("      :: IO({})".format(self.return_type.ctype))
+        # print arguments (c types), always at least errorcode
+        # which is not present in the api definition
+        args = list(self.args) + [oint("errcode")]
+        lines.append("      :: {}".format(args[0].ctype))
+        for a in args[1:]:
+            lines.append("      -> {}".format(a.ctype))
 
         if self.return_type is None:
             lines.append("      -> IO()")
@@ -213,7 +269,7 @@ class Module:
         #fhandle.write("Module {}: \n".format(prefix))
         # take only two functions from each module at first
         for f in self.fs[:2]:
-            fhandle.write(f.str_foreignexp(prefix))
+            fhandle.write(f.to_string(prefix))
             fhandle.write("\n")
 
         for m in self.submodules:
