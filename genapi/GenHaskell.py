@@ -23,6 +23,28 @@ class arg:
         self.name = name
         self.value = value
 
+    def str_foreignexp(self):
+        return self.ctype
+
+    def str_type_signature(self):
+        return self.htype
+
+class input_array(arg):
+    def str_foreignexp(self):
+        return self.ctype + " -> CInt"
+
+class input_arrayarray(arg):
+    def str_foreignexp(self):
+        return self.ctype + " -> Ptr CInt -> CInt"
+
+class output_array(arg):
+    def str_foreignexp(self):
+        return self.ctype + " -> Ptr CInt"
+
+class output_arrayarray(arg):
+    def str_foreignexp(self):
+        return self.ctype + " -> Ptr (Ptr CInt) -> Prt CInt"
+
 # input types
 class ibool(arg):
     htype = "Bool"
@@ -49,106 +71,114 @@ class ivoidstar(arg):
     ctype = "?"
 
 
-class ivectorint(arg):
+class ivectorint(input_array):
     htype = "[Int]"
     ctype = "Ptr CInt"
 
-class ivectorsize(arg):
+
+class ivectorsize(input_array):
     htype = "[Int]"
     ctype = "Ptr CInt"
 
-class ivectordouble(arg):
+
+class ivectordouble(input_array):
     htype = "[Double]"
     ctype = "Ptr Double"
 
-class ivectorstring(arg):
+
+class ivectorstring(input_array):
     htype = "[String]"
     ctype = "Ptr CString"
 
-class ivectorpair(arg):
+
+class ivectorpair(input_array):
     htype = "[(Int, Int)]"
-    ctype = "Ptr (Ptr Int)"
+    ctype = "Ptr CInt"
+
 
 # seems like not in use
 # class ivectorvectorint(arg):
 #     htype = ""
 #     ctype = ""
 
-class ivectorvectorsize(arg):
+class ivectorvectorsize(input_arrayarray):
     htype = "[[Int]]"
     ctype = "Ptr (Ptr Int)"
 
-class ivectorvectordouble(arg):
+class ivectorvectordouble(input_arrayarray):
     htype = "[[Double]]"
     ctype = "Ptr (Ptr Double)"
 
 # output types
 
-class oint(iint):
+class oint(arg):
     output = True
     htype = "Int"
     ctype = "Ptr CInt"
 
-class osize(isize):
+class osize(arg):
     output = True
     htype = "Int"
     ctype = "Ptr CInt"
 
-class odouble(idouble):
+class odouble(arg):
     output = True
     htype = "Double"
     ctype = "Ptr CDouble"
 
-class ostring(istring):
+class ostring(arg):
     output = True
     htype = "String"
     ctype = "Ptr CString"
 
-class ovectorint(ivectorint):
+class ovectorint(output_array):
     output = True
     htype = "[Int]"
-    ctype = "Ptr CInt"
+    ctype = "Ptr (Ptr CInt)"
 
-class ovectorsize(ivectorsize):
+class ovectorsize(output_array):
     output = True
     htype = "[Int]"
-    ctype = "Ptr CInt"
+    ctype = "Ptr (Ptr CInt)"
 
-class ovectordouble(ivectordouble):
+class ovectordouble(output_array):
     output = True
     htype = "[Double]"
-    ctype = "Ptr CDouble"
+    ctype = "Ptr (Ptr CDouble)"
 
-class ovectorstring(ivectorstring):
+
+class ovectorstring(output_array):
     output = True
     htype = "[String]"
     ctype = "Ptr CString"
 
-class ovectorpair(ivectorpair):
+class ovectorpair(output_array):
     output = True
     htype = "Int"
-    ctype = "Ptr CInt"
+    ctype = "Ptr (Ptr CInt)"
+
 
 # Not used
 # class ovectorvectorint(ivectorvectorint):
 #     output = True
 
-class ovectorvectorsize(ivectorvectorsize):
+class ovectorvectorsize(output_arrayarray):
     output = True
     htype = "[[Int]]"
-    ctype = "Ptr (Ptr CInt)"
+    ctype = "Ptr (Ptr (Ptr CInt))"
 
-class ovectorvectordouble(ivectorvectordouble):
+class ovectorvectordouble(output_arrayarray):
     output = True
     htype = "[[Double]]"
-    ctype = "Ptr (Ptr CDouble)"
+    ctype = "Ptr (Ptr (Ptr CDouble))"
 
-class ovectorvectorpair(arg):
+class ovectorvectorpair(output_arrayarray):
     output = True
     htype = "[[(Int, Int)]]"
-    ctype = "Ptr (Ptr (Ptr Int))"
+    ctype = "Ptr (Ptr (Ptr CInt))"
 
-class argcargv():
+
+class argcargv(arg):
     output = False
     def __init__(self, *args):
         self.name = "argv"
@@ -188,11 +218,11 @@ class Function:
         inputs = [a for a in self.args if a.output]
         outputs = [a for a in self.args if not a.output]
 
-        itypesign = " -> ".join([a.htype for a in inputs])
+        itypesign = " -> ".join([a.str_type_signature() for a in inputs])
         if(len(itypesign) > 0):
             itypesign += " -> "
 
-        otypesign = ", ".join([a.htype for a in outputs])
+        otypesign = ", ".join([a.str_type_signature() for a in outputs])
 
         return "".join([fname, " :: ",  itypesign, "IO(", otypesign, ")"])
 
@@ -225,9 +255,9 @@ class Function:
         # print arguments (c types), always at least errorcode
         # which is not present in the api definition
         args = list(self.args) + [oint("errcode")]
-        lines.append("      :: {}".format(args[0].ctype))
+        lines.append("      :: {}".format(args[0].str_foreignexp()))
         for a in args[1:]:
-            lines.append("      -> {}".format(a.ctype))
+            lines.append("      -> {}".format(a.str_foreignexp()))
 
         if self.return_type is None:
             lines.append("      -> IO()")
