@@ -19,31 +19,53 @@
 
 class arg:
     output = False
-    def __init__(self, name, value=None,  python_value=None, julia_value=None):
+    def __init__(self, name=None, value=None,  python_value=None, julia_value=None):
         self.name = name
         self.value = value
 
-    def str_foreignexp(self):
-        return self.ctype
+    def foreignexp(self):
+        return [self.ctype]
 
-    def str_type_signature(self):
-        return self.htype
+    def type_signature(self):
+        return [self.htype]
 
+class oarg(arg):
+    output = True
+    def foreignexp(self):
+        # these things are either the return values of the C function
+        # or ordinary "reference" variables
+        return ["Ptr {}".format(self.ctype)]
+
+    def type_signature(self):
+        return [self.htype]
+
+    def type_in_return(self):
+        return [self.ctype]
+
+
+
+# these things are not given as return values from the C api,
+# because that's impossible
 class input_array(arg):
-    def str_foreignexp(self):
-        return self.ctype + " -> CInt"
+    def foreignexp(self):
+        out = ["Ptr {}".format(self.ctype), "CInt"]
+        return out
 
 class input_arrayarray(arg):
-    def str_foreignexp(self):
-        return self.ctype + " -> Ptr CInt -> CInt"
+    def foreignexp(self):
+        out = ["Ptr (Ptr {})".format(self.ctype), "Ptr CInt", "CInt"]
+        return out
 
-class output_array(arg):
-    def str_foreignexp(self):
-        return self.ctype + " -> Ptr CInt"
+class output_array(oarg):
+    def foreignexp(self):
+        return ["Ptr ( Ptr {})".format(self.ctype),
+                "Ptr CInt"]
 
-class output_arrayarray(arg):
-    def str_foreignexp(self):
-        return self.ctype + " -> Ptr (Ptr CInt) -> Prt CInt"
+class output_arrayarray(oarg):
+    def foreignexp(self):
+        return ["Ptr (Ptr (Ptr {}))".format(self.ctype),
+                "Ptr (Ptr CInt)",
+                "Ptr CInt"]
 
 # input types
 class ibool(arg):
@@ -73,27 +95,26 @@ class ivoidstar(arg):
 
 class ivectorint(input_array):
     htype = "[Int]"
-    ctype = "Ptr CInt"
+    ctype = "CInt"
 
 
 class ivectorsize(input_array):
     htype = "[Int]"
-    ctype = "Ptr CInt"
-
+    ctype = "CInt"
 
 class ivectordouble(input_array):
     htype = "[Double]"
-    ctype = "Ptr Double"
+    ctype = "Double"
 
 
 class ivectorstring(input_array):
     htype = "[String]"
-    ctype = "Ptr CString"
+    ctype = "CString"
 
 
 class ivectorpair(input_array):
     htype = "[(Int, Int)]"
-    ctype = "Ptr CInt"
+    ctype = "CInt"
 
 
 # seems like not in use
@@ -103,59 +124,50 @@ class ivectorpair(input_array):
 
 class ivectorvectorsize(input_arrayarray):
     htype = "[[Int]]"
-    ctype = "Ptr (Ptr Int)"
+    ctype = "CInt"
 
 class ivectorvectordouble(input_arrayarray):
     htype = "[[Double]]"
-    ctype = "Ptr (Ptr Double)"
+    ctype = "CDouble"
 
 # output types
 
-class oint(arg):
-    output = True
+class oint(oarg):
     htype = "Int"
-    ctype = "Ptr CInt"
+    ctype = "CInt"
 
-class osize(arg):
-    output = True
+class osize(oarg):
     htype = "Int"
-    ctype = "Ptr CInt"
+    ctype = "CInt"
 
-class odouble(arg):
-    output = True
+class odouble(oarg):
     htype = "Double"
-    ctype = "Ptr CDouble"
+    ctype = "CDouble"
 
-class ostring(arg):
-    output = True
+class ostring(oarg):
     htype = "String"
-    ctype = "Ptr CString"
+    ctype = "CString"
 
 class ovectorint(output_array):
-    output = True
     htype = "[Int]"
-    ctype = "Ptr (Ptr CInt)"
+    ctype = "CInt"
 
 class ovectorsize(output_array):
-    output = True
     htype = "[Int]"
-    ctype = "Ptr (Ptr CInt)"
+    ctype = "CInt"
 
 class ovectordouble(output_array):
-    output = True
     htype = "[Double]"
-    ctype = "Ptr (Ptr CDouble)"
+    ctype = "CDouble"
 
 
 class ovectorstring(output_array):
-    output = True
     htype = "[String]"
-    ctype = "Ptr CString"
+    ctype = "CString"
 
 class ovectorpair(output_array):
-    output = True
     htype = "Int"
-    ctype = "Ptr (Ptr CInt)"
+    ctype = "CInt"
 
 
 # Not used
@@ -165,17 +177,17 @@ class ovectorpair(output_array):
 class ovectorvectorsize(output_arrayarray):
     output = True
     htype = "[[Int]]"
-    ctype = "Ptr (Ptr (Ptr CInt))"
+    ctype = "CInt"
 
 class ovectorvectordouble(output_arrayarray):
     output = True
     htype = "[[Double]]"
-    ctype = "Ptr (Ptr (Ptr CDouble))"
+    ctype = "CDouble"
 
 class ovectorvectorpair(output_arrayarray):
     output = True
     htype = "[[(Int, Int)]]"
-    ctype = "Ptr (Ptr (Ptr CInt))"
+    ctype = "CInt"
 
 
 class argcargv(arg):
@@ -188,6 +200,9 @@ class argcargv(arg):
 def camelcasify(str):
     """ raise the first letter to uppercase """
     return str[0].upper() + str[1:]
+
+def flatten2(lst):
+    return [x for xs in lst for x in xs]
 
 class Function:
     def __init__(self, rtype, name, args, doc, special=[]):
@@ -205,6 +220,10 @@ class Function:
         """ Generate the type signature for the haskell function
         Input variables need to be present, output variables are wrapped
         in the IO action.
+
+        If function has the return_type specified, it will always be the last
+        one in IO(...)
+
         Example:
 
         gmshModelGetEntities :: Int -> IO([(Int, Int)]) """
@@ -215,14 +234,21 @@ class Function:
         a string for itself, only it knows when extra sizes are present
         in the c call.) """
         fname = prefix  + camelcasify(self.name)
-        inputs = [a for a in self.args if a.output]
-        outputs = [a for a in self.args if not a.output]
+        inputs = [a for a in self.args if not a.output]
+        outputs = [a for a in self.args if a.output]
 
-        itypesign = " -> ".join([a.str_type_signature() for a in inputs])
+        # append the return_type, if any
+        if self.return_type is not None:
+            outputs.append(self.return_type)
+
+        itypes = flatten2([a.type_signature() for a in inputs])
+        itypesign = " -> ".join(itypes)
+
         if(len(itypesign) > 0):
             itypesign += " -> "
 
-        otypesign = ", ".join([a.str_type_signature() for a in outputs])
+        otypes = flatten2([a.type_signature() for a in outputs])
+        otypesign = ", ".join(otypes)
 
         return "".join([fname, " :: ",  itypesign, "IO(", otypesign, ")"])
 
@@ -255,14 +281,17 @@ class Function:
         # print arguments (c types), always at least errorcode
         # which is not present in the api definition
         args = list(self.args) + [oint("errcode")]
-        lines.append("      :: {}".format(args[0].str_foreignexp()))
-        for a in args[1:]:
-            lines.append("      -> {}".format(a.str_foreignexp()))
+        types = flatten2([a.foreignexp() for a in args])
+
+        lines.append("      :: {}".format(types[0]))
+        for t in types[1:]:
+            lines.append("      -> {}".format(t))
 
         if self.return_type is None:
             lines.append("      -> IO()")
         else:
-            lines.append("      -> IO({})".format(self.return_type.ctype))
+            t = self.return_type.type_in_return()[0]
+            lines.append("      -> IO({})".format(t))
 
         return "\n".join(lines)
 
@@ -275,9 +304,13 @@ class Module:
         self.submodules = []
 
     def add(self, name, doc, rtype, *args):
+        if rtype is not None:
+            rtype = rtype()
         self.fs.append(Function(rtype, name, args, doc, []))
 
     def add_special(self, name, doc, special, rtype, *args):
+        if rtype is not None:
+            rtype = rtype()
         self.fs.append(Function(rtype, name, args, doc, special))
 
     def add_module(self, name, doc):
