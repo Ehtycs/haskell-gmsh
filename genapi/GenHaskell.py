@@ -29,6 +29,9 @@ class arg:
     def type_signature(self):
         return [self.htype]
 
+    def ccall_inputs(self):
+        return "{}'".format(self.name)
+
 class oarg(arg):
     output = True
     def foreignexp(self):
@@ -51,15 +54,27 @@ class input_array(arg):
         out = ["Ptr {}".format(self.ctype), "CInt"]
         return out
 
+    def ccall_inputs(self):
+        n = self.name
+        return "{}' {}'_n".format(n, n)
+
 class input_arrayarray(arg):
     def foreignexp(self):
         out = ["Ptr (Ptr {})".format(self.ctype), "Ptr CInt", "CInt"]
         return out
 
+    def ccall_inputs(self):
+        n = self.name
+        return "{}' {}'_n {}'_nn".format(n,n,n)
+
 class output_array(oarg):
     def foreignexp(self):
         return ["Ptr ( Ptr {})".format(self.ctype),
                 "Ptr CInt"]
+
+    def ccall_inputs(self):
+        n = self.name
+        return "{}' {}'_n".format(n, n)
 
 class output_arrayarray(oarg):
     def foreignexp(self):
@@ -67,54 +82,88 @@ class output_arrayarray(oarg):
                 "Ptr (Ptr CInt)",
                 "Ptr CInt"]
 
+    def ccall_inputs(self):
+        n = self.name
+        return "{}' {}'_n {}'_nn".format(n,n,n)
+
 # input types
 class ibool(arg):
     htype = "Bool"
     ctype = "CBool"
 
+    def marshall_in(self):
+        return ["let {}' = fromBool {}".format(self.name, self.name)]
+
+
 class iint(arg):
     htype = "Int"
     ctype = "CInt"
+
+    def marshall_in(self):
+        return ["let {}' = fromIntegral {}".format(self.name, self.name)]
 
 class isize(arg):
     htype = "Int"
     ctype = "CInt"
 
+    def marshall_in(self):
+        return ["let {}' = fromIntegral {}".format(self.name, self.name)]
+
 class idouble(arg):
     htype = "Double"
     ctype = "CDouble"
+
+    def marshall_in(self):
+        return ["let {}' = fromReal {}".format(self.name, self.name)]
 
 class istring(arg):
     htype = "String"
     ctype = "CString"
 
+    def marshall_in(self):
+        return ["?"]
+
 class ivoidstar(arg):
     htype = "?"
     ctype = "?"
 
+    def marshall_in(self):
+        return ["?"]
 
 class ivectorint(input_array):
     htype = "[Int]"
     ctype = "CInt"
 
+    def marshall_in(self):
+        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
 
 class ivectorsize(input_array):
     htype = "[Int]"
     ctype = "CInt"
 
+    def marshall_in(self):
+        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+
 class ivectordouble(input_array):
     htype = "[Double]"
     ctype = "Double"
 
+    def marshall_in(self):
+        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
 
 class ivectorstring(input_array):
     htype = "[String]"
     ctype = "CString"
 
+    def marshall_in(self):
+        return ["?"]
 
 class ivectorpair(input_array):
     htype = "[(Int, Int)]"
     ctype = "CInt"
+
+    def marshall_in(self):
+        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
 
 
 # seems like not in use
@@ -126,9 +175,18 @@ class ivectorvectorsize(input_arrayarray):
     htype = "[[Int]]"
     ctype = "CInt"
 
+    def marshall_in(self):
+        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+
+
 class ivectorvectordouble(input_arrayarray):
     htype = "[[Double]]"
     ctype = "CDouble"
+
+    def marshall_in(self):
+        n = self.name
+        return ["withArrayArrayLen $ \\{}' {}'_n {}'_nn -> do".format(n,n,n)]
+
 
 # output types
 
@@ -136,38 +194,79 @@ class oint(oarg):
     htype = "Int"
     ctype = "CInt"
 
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n)]
+
+
 class osize(oarg):
     htype = "Int"
     ctype = "CInt"
+
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n)]
 
 class odouble(oarg):
     htype = "Double"
     ctype = "CDouble"
 
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n)]
+
 class ostring(oarg):
     htype = "String"
     ctype = "CString"
+
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n)]
 
 class ovectorint(output_array):
     htype = "[Int]"
     ctype = "CInt"
 
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n),
+                "alloca $ \\{}_n -> do".format(n)]
+
 class ovectorsize(output_array):
     htype = "[Int]"
     ctype = "CInt"
+
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n),
+                "alloca $ \\{}_n -> do".format(n)]
 
 class ovectordouble(output_array):
     htype = "[Double]"
     ctype = "CDouble"
 
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n),
+                "alloca $ \\{}_n -> do".format(n)]
 
 class ovectorstring(output_array):
     htype = "[String]"
     ctype = "CString"
 
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n),
+                "alloca $ \\{}_n -> do".format(n)]
+
 class ovectorpair(output_array):
     htype = "Int"
     ctype = "CInt"
+
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n),
+                "alloca $ \\{}_n -> do".format(n)]
 
 
 # Not used
@@ -179,23 +278,44 @@ class ovectorvectorsize(output_arrayarray):
     htype = "[[Int]]"
     ctype = "CInt"
 
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n),
+                "alloca $ \\{}_n -> do".format(n),
+                "alloca $ \\{}_nn -> do".format(n)]
+
 class ovectorvectordouble(output_arrayarray):
     output = True
     htype = "[[Double]]"
     ctype = "CDouble"
+
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n),
+                "alloca $ \\{}_n -> do".format(n),
+                "alloca $ \\{}_nn -> do".format(n)]
 
 class ovectorvectorpair(output_arrayarray):
     output = True
     htype = "[[(Int, Int)]]"
     ctype = "CInt"
 
+    def marshall_in(self):
+        n = self.name
+        return ["alloca $ \\{} -> do".format(n),
+                "alloca $ \\{}_n -> do".format(n),
+                "alloca $ \\{}_nn -> do".format(n)]
 
 class argcargv(arg):
     output = False
     def __init__(self, *args):
         self.name = "argv"
-        self.htype = "argv* `[String]' void-"
+        self.htype = "?"
         self.ctype = "Ptr CString"
+
+    def marshall_in(self):
+        n = self.name
+        return ["?"]
 
 def camelcasify(str):
     """ raise the first letter to uppercase """
@@ -214,32 +334,32 @@ class Function:
 
     def to_string(self, prefix):
         return "\n".join([self.str_type_signature(prefix),
+                          self.str_body(prefix),
                           self.str_foreignexp(prefix)])
+
+    def input_arguments(self):
+        return [a for a in self.args if not a.output]
+
+    def output_arguments(self):
+        return [x for x in self.args if x.output]
 
     def str_type_signature(self, prefix):
         """ Generate the type signature for the haskell function
         Input variables need to be present, output variables are wrapped
         in the IO action.
 
-        If function has the return_type specified, it will always be the last
+        If function has the return_type specified, it will always be the first
         one in IO(...)
 
         Example:
 
         gmshModelGetEntities :: Int -> IO([(Int, Int)]) """
 
-        """ ATTENTION: the vector sizes are not present in the
-        api_gen.py. Probably need to refactor this to
-        the argument class (argument class needs to create
-        a string for itself, only it knows when extra sizes are present
-        in the c call.) """
         fname = prefix  + camelcasify(self.name)
-        inputs = [a for a in self.args if not a.output]
-        outputs = [a for a in self.args if a.output]
-
-        # append the return_type, if any
+        inputs = self.input_arguments()
+        outputs = self.output_arguments()
         if self.return_type is not None:
-            outputs.append(self.return_type)
+            outputs = [self.return_type] + outputs
 
         itypes = flatten2([a.type_signature() for a in inputs])
         itypesign = " -> ".join(itypes)
@@ -252,6 +372,87 @@ class Function:
 
         return "".join([fname, " :: ",  itypesign, "IO(", otypesign, ")"])
 
+    def str_body(self, prefix):
+        """ Generates the body of the function call with marshalling etc.
+
+        some sort of template:
+
+        fname i1 i2 ... in = do
+            let ik1 = ...
+            ... types which can be converted to C values ...
+
+            withArrayLen $ \ arr1 arr1_n ->
+            ... all input types which are delivered using pointers
+
+            alloca $ \ o1 -> do
+            ... return types which need allocation
+
+            alloca $ \ errptr -> do
+            ... the error pointer
+
+            -- the actual call to the function
+            out = cfname ...arguments...
+
+            checkErrorCodeAndThrow errptr
+
+            -- output marshalling
+            oval <- out
+            let moval = marshaller oval
+
+            -- peeking and marshalling output arguments
+            oval1 <- peekX o1
+            ...
+
+            -- the actual output argument always first
+            return (moval, oval1, oval2, ... ovaln)
+
+        """
+
+        inputs = self.input_arguments()
+        outputs = self.output_arguments()
+        rtype = self.return_type
+        fname = prefix + camelcasify(self.name)
+
+        ## Function declaration line
+        decline = [fname]
+        for a in inputs:
+            decline.append(a.name)
+        decline.append("= do")
+        lines = [" ".join(decline)]
+
+        ## Input variables with marshalling
+        for a in inputs:
+            for l in a.marshall_in():
+                lines.append("   "+l)
+
+        ## Output variables with marshalling
+        for a in outputs:
+            for l in a.marshall_in():
+                lines.append("   "+l)
+
+        ## error ptr
+        lines.append("   alloca $ \\errptr -> do")
+
+        ## the actual call
+        if rtype is None:
+            calline = ["   c{}".format(fname)]
+        else:
+            calline = ["   {} <- c{}".format(rtype.name, fname)]
+        for a in inputs:
+            calline.append(a.ccall_inputs())
+        lines.append(" ".join(calline))
+
+        ## check error code
+        lines.append("   checkErrorCodeAndThrow errptr")
+
+        ## output marshalling
+        ## TODO: continue from here!
+        #if rtype is not None:
+            #lines.append("   let {}' = {}".format(rtype.name, rtype.name))
+            #lines.append(rtype.marshall_out())
+
+
+        return "\n".join(lines)
 
     def str_foreignexp(self, prefix):
         """
@@ -304,13 +505,14 @@ class Module:
         self.submodules = []
 
     def add(self, name, doc, rtype, *args):
+        # let's name the output variable oval to ease the process
         if rtype is not None:
-            rtype = rtype()
+            rtype = rtype("oval")
         self.fs.append(Function(rtype, name, args, doc, []))
 
     def add_special(self, name, doc, special, rtype, *args):
         if rtype is not None:
-            rtype = rtype()
+            rtype = rtype("oval")
         self.fs.append(Function(rtype, name, args, doc, special))
 
     def add_module(self, name, doc):
