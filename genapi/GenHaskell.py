@@ -19,6 +19,7 @@
 
 class arg:
     output = False
+    indent = 0
     def __init__(self, name=None, value=None,  python_value=None, julia_value=None):
         self.name = name
         self.value = value
@@ -50,6 +51,10 @@ class oarg(arg):
 # these things are not given as return values from the C api,
 # because that's impossible
 class input_array(arg):
+
+    indent = 1
+
+
     def foreignexp(self):
         out = ["Ptr {}".format(self.ctype), "CInt"]
         return out
@@ -59,6 +64,9 @@ class input_array(arg):
         return "{}' {}'_n".format(n, n)
 
 class input_arrayarray(arg):
+
+    indent = 2
+
     def foreignexp(self):
         out = ["Ptr (Ptr {})".format(self.ctype), "Ptr CInt", "CInt"]
         return out
@@ -68,6 +76,10 @@ class input_arrayarray(arg):
         return "{}' {}'_n {}'_nn".format(n,n,n)
 
 class output_array(oarg):
+
+    indent = 1
+
+
     def foreignexp(self):
         return ["Ptr ( Ptr {})".format(self.ctype),
                 "Ptr CInt"]
@@ -77,6 +89,9 @@ class output_array(oarg):
         return "{}' {}'_n".format(n, n)
 
 class output_arrayarray(oarg):
+
+    indent = 2
+
     def foreignexp(self):
         return ["Ptr (Ptr (Ptr {}))".format(self.ctype),
                 "Ptr (Ptr CInt)",
@@ -114,11 +129,12 @@ class idouble(arg):
     ctype = "CDouble"
 
     def marshall_in(self):
-        return ["let {}' = fromReal {}".format(self.name, self.name)]
+        return ["let {}' = realToFrac {}".format(self.name, self.name)]
 
 class istring(arg):
     htype = "String"
     ctype = "CString"
+    indent = 1
 
     def marshall_in(self):
         return ["withCString {} $ \\{}' -> do".format(self.name, self.name)]
@@ -194,6 +210,8 @@ class oint(oarg):
     htype = "Int"
     ctype = "CInt"
 
+    indent = 1
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n)]
@@ -203,6 +221,8 @@ class osize(oarg):
     htype = "Int"
     ctype = "CInt"
 
+    indent = 1
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n)]
@@ -210,6 +230,8 @@ class osize(oarg):
 class odouble(oarg):
     htype = "Double"
     ctype = "CDouble"
+
+    indent = 1
 
     def marshall_in(self):
         n = self.name
@@ -219,6 +241,8 @@ class ostring(oarg):
     htype = "String"
     ctype = "CString"
 
+    indent = 1
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n)]
@@ -227,46 +251,56 @@ class ovectorint(output_array):
     htype = "[Int]"
     ctype = "CInt"
 
+    indent = 2
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n),
-                "alloca $ \\{}_n -> do".format(n)]
+                "   alloca $ \\{}_n -> do".format(n)]
 
 class ovectorsize(output_array):
     htype = "[Int]"
     ctype = "CInt"
 
+    indent = 2
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n),
-                "alloca $ \\{}_n -> do".format(n)]
+                "   alloca $ \\{}_n -> do".format(n)]
 
 class ovectordouble(output_array):
     htype = "[Double]"
     ctype = "CDouble"
 
+    indent = 2
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n),
-                "alloca $ \\{}_n -> do".format(n)]
+                "   alloca $ \\{}_n -> do".format(n)]
 
 class ovectorstring(output_array):
     htype = "[String]"
     ctype = "CString"
 
+    indent = 2
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n),
-                "alloca $ \\{}_n -> do".format(n)]
+                "   alloca $ \\{}_n -> do".format(n)]
 
 class ovectorpair(output_array):
     htype = "Int"
     ctype = "CInt"
 
+    indent = 2
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n),
-                "alloca $ \\{}_n -> do".format(n)]
+                "   alloca $ \\{}_n -> do".format(n)]
 
 
 # Not used
@@ -278,36 +312,45 @@ class ovectorvectorsize(output_arrayarray):
     htype = "[[Int]]"
     ctype = "CInt"
 
+    indent = 3
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n),
-                "alloca $ \\{}_n -> do".format(n),
-                "alloca $ \\{}_nn -> do".format(n)]
+                "   alloca $ \\{}_n -> do".format(n),
+                "      alloca $ \\{}_nn -> do".format(n)]
 
 class ovectorvectordouble(output_arrayarray):
     output = True
     htype = "[[Double]]"
     ctype = "CDouble"
 
+    indent = 3
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n),
-                "alloca $ \\{}_n -> do".format(n),
-                "alloca $ \\{}_nn -> do".format(n)]
+                "   alloca $ \\{}_n -> do".format(n),
+                "      alloca $ \\{}_nn -> do".format(n)]
 
 class ovectorvectorpair(output_arrayarray):
     output = True
     htype = "[[(Int, Int)]]"
     ctype = "CInt"
 
+    indent = 3
+
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{} -> do".format(n),
-                "alloca $ \\{}_n -> do".format(n),
-                "alloca $ \\{}_nn -> do".format(n)]
+                "   alloca $ \\{}_n -> do".format(n),
+                "      alloca $ \\{}_nn -> do".format(n)]
 
 class argcargv(arg):
     output = False
+
+    indent = 1
+
     def __init__(self, *args):
         self.name = "argv"
         self.htype = None
@@ -315,7 +358,7 @@ class argcargv(arg):
 
     def marshall_in(self):
         n = self.name
-        return ["let argc' = length argv",
+        return ["let argc' = fromIntegral $ length argv",
                 "withArgv argv $ \\argv' -> do"]
 
     def foreignexp(self):
@@ -430,24 +473,32 @@ class Function:
         decline.append("= do")
         lines = [" ".join(decline)]
 
+        # this hack is required to make the indentation of the do blocks
+        indlevel = 1
         ## Input variables with marshalling
         for a in inputs:
             for l in a.marshall_in():
-                lines.append("   "+l)
+                lines.append(" "*3*indlevel + l)
+            indlevel = a.indent + indlevel
 
         ## Output variables with marshalling
         for a in outputs:
             for l in a.marshall_in():
-                lines.append("   "+l)
+                lines.append(" "*3*indlevel + l)
+            indlevel = a.indent + indlevel
 
         ## error ptr
-        lines.append("   alloca $ \\errptr -> do")
+        lines.append(" "*3*indlevel+"alloca $ \\errptr -> do")
+
+        indlevel = indlevel+1
+        indent = 3*indlevel*" "
+
 
         ## the actual call
         if rtype is None:
-            calline = ["   c{}".format(fname)]
+            calline = [indent+"c{}".format(fname)]
         else:
-            calline = ["   {} <- c{}".format(rtype.name, fname)]
+            calline = [indent+"{} <- c{}".format(rtype.name, fname)]
         for a in inputs:
             calline.append(a.ccall_inputs())
         # error pointer to the end
@@ -455,14 +506,13 @@ class Function:
         lines.append(" ".join(calline))
 
         ## check error code
-        lines.append("   checkErrorCodeAndThrow errptr")
+        lines.append(indent+"checkErrorCodeAndThrow \"{}\" errptr".format(fname))
 
         ## output marshalling
-        ## TODO: continue from here!
         #if rtype is not None:
             #lines.append("   let {}' = {}".format(rtype.name, rtype.name))
             #lines.append(rtype.marshall_out())
-        lines.append("   return ()")
+        lines.append(indent+"return ()")
 
 
         return "\n".join(lines)
@@ -473,7 +523,7 @@ class Function:
 
         Example:
 
-        foreign import ccall unsafe "gmshc.h gmshModelGetEntities"
+        foreign import ccall safe "gmshc.h gmshModelGetEntities"
          cgmshModelGetEntities
             :: Ptr (Ptr CInt)
             -> Ptr CInt
@@ -489,7 +539,7 @@ class Function:
         in the c call.) """
 
         fname = prefix + camelcasify(self.name)
-        lines = ["foreign import ccall unsafe \"gmshc.h {}\"".format(fname)]
+        lines = ["foreign import ccall safe \"gmshc.h {}\"".format(fname)]
         lines.append("   {}".format("c"+fname))
 
         # print arguments (c types), always at least errorcode
@@ -546,7 +596,7 @@ class Module:
 
         #fhandle.write("Module {}: \n".format(prefix))
         # take only one function from each module at first
-        for f in self.fs[0:1]:
+        for f in self.fs:
             fhandle.write(f.to_string(prefix))
             fhandle.write("\n")
 
@@ -618,18 +668,12 @@ import Control.Applicative ((<$>))
 import Foreign.C -- get the C types
 import Foreign.Ptr (Ptr,nullPtr)
 import Foreign.C.String (withCString)
-import Foreign.Marshal (alloca)
+import Foreign.Marshal (alloca, fromBool)
 import Foreign.Marshal.Utils (withMany)
 import Foreign.Marshal.Array (withArray, peekArray, advancePtr, withArrayLen)
 import Foreign.Storable (peek, Storable)
 import Data.Maybe (fromMaybe)
 import Debug.Trace (trace)
-
---import qualified Data.Vector.Storable as VS
-import qualified Data.Vector.Unboxed as V
-
-
---include "gmshc.h"
 
 toInt :: Ptr CInt -> IO Int
 toInt = liftM fromIntegral . peek

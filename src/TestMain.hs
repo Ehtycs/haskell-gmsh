@@ -12,7 +12,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License ("LICENSE" file) for more details.
 -}
-module TestMain where
+module Main where
 
 import Control.Concurrent (runInBoundThread)
 
@@ -20,7 +20,7 @@ import GmshAPI
 
 main :: IO ()
 main = do
-  gmshInitialize [] 0
+  gmshInitialize [] False
 --  gmshModelOccAddPoint 0.0 0.0 0.0 1.0 1
 --  gmshModelOccAddPoint 1.0 1.0 1.0 1.0 2
 --  gmshModelOccAddDisk 0.0 0.0 0.0 1.0 1.0 1
