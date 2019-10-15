@@ -109,7 +109,6 @@ class ibool(arg):
     def marshall_in(self):
         return ["let {}' = fromBool {}".format(self.name, self.name)]
 
-
 class iint(arg):
     htype = "Int"
     ctype = "CInt"
@@ -194,7 +193,6 @@ class ivectorvectorsize(input_arrayarray):
     def marshall_in(self):
         return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
 
-
 class ivectorvectordouble(input_arrayarray):
     htype = "[[Double]]"
     ctype = "CDouble"
@@ -214,7 +212,12 @@ class oint(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n)]
+
+    def marshall_out(self):
+        n = self.name
+        return ["{}'' <- peek {}'".format(n,n),
+                "let {}''' = fromIntegral {}''".format(n,n)]
 
 
 class osize(oarg):
@@ -225,7 +228,7 @@ class osize(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n)]
 
 class odouble(oarg):
     htype = "Double"
@@ -235,7 +238,12 @@ class odouble(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n)]
+
+    def marshall_out(self):
+        n = self.name
+        return ["{}'' <- peek {}'".format(n,n),
+                "let {}''' = realToFrac {}''".format(n,n)]
 
 class ostring(oarg):
     htype = "String"
@@ -245,7 +253,12 @@ class ostring(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n)]
+
+    def marshall_out(self):
+        n = self.name
+        return ["{}'' <- peek {}'".format(n,n),
+                "{}''' <- peekCString {}''".format(n,n)]
 
 class ovectorint(output_array):
     htype = "[Int]"
@@ -255,8 +268,8 @@ class ovectorint(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n),
-                "   alloca $ \\{}_n -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n),
+                "   alloca $ \\{}'_n -> do".format(n)]
 
 class ovectorsize(output_array):
     htype = "[Int]"
@@ -266,8 +279,8 @@ class ovectorsize(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n),
-                "   alloca $ \\{}_n -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n),
+                "   alloca $ \\{}_n' -> do".format(n)]
 
 class ovectordouble(output_array):
     htype = "[Double]"
@@ -277,8 +290,8 @@ class ovectordouble(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n),
-                "   alloca $ \\{}_n -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n),
+                "   alloca $ \\{}_n' -> do".format(n)]
 
 class ovectorstring(output_array):
     htype = "[String]"
@@ -288,8 +301,8 @@ class ovectorstring(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n),
-                "   alloca $ \\{}_n -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n),
+                "   alloca $ \\{}_n' -> do".format(n)]
 
 class ovectorpair(output_array):
     htype = "Int"
@@ -299,8 +312,8 @@ class ovectorpair(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n),
-                "   alloca $ \\{}_n -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n),
+                "   alloca $ \\{}_n' -> do".format(n)]
 
 
 # Not used
@@ -316,9 +329,9 @@ class ovectorvectorsize(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n),
-                "   alloca $ \\{}_n -> do".format(n),
-                "      alloca $ \\{}_nn -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n),
+                "   alloca $ \\{}'_n -> do".format(n),
+                "      alloca $ \\{}'_nn -> do".format(n)]
 
 class ovectorvectordouble(output_arrayarray):
     output = True
@@ -329,9 +342,9 @@ class ovectorvectordouble(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n),
-                "   alloca $ \\{}_n -> do".format(n),
-                "      alloca $ \\{}_nn -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n),
+                "   alloca $ \\{}'_n -> do".format(n),
+                "      alloca $ \\{}'_nn -> do".format(n)]
 
 class ovectorvectorpair(output_arrayarray):
     output = True
@@ -342,9 +355,9 @@ class ovectorvectorpair(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{} -> do".format(n),
-                "   alloca $ \\{}_n -> do".format(n),
-                "      alloca $ \\{}_nn -> do".format(n)]
+        return ["alloca $ \\{}' -> do".format(n),
+                "   alloca $ \\{}'_n -> do".format(n),
+                "      alloca $ \\{}'_nn -> do".format(n)]
 
 class argcargv(arg):
     output = False
@@ -499,7 +512,7 @@ class Function:
             calline = [indent+"c{}".format(fname)]
         else:
             calline = [indent+"{} <- c{}".format(rtype.name, fname)]
-        for a in inputs:
+        for a in self.args:
             calline.append(a.ccall_inputs())
         # error pointer to the end
         calline.append("errptr")
@@ -509,10 +522,20 @@ class Function:
         lines.append(indent+"checkErrorCodeAndThrow \"{}\" errptr".format(fname))
 
         ## output marshalling
-        #if rtype is not None:
+        if rtype is not None:
             #lines.append("   let {}' = {}".format(rtype.name, rtype.name))
-            #lines.append(rtype.marshall_out())
-        lines.append(indent+"return ()")
+            lines.append(rtype.marshall_out())
+
+        for ov in outputs:
+            for l in ov.marshall_out():
+                lines.append(indent + l)
+
+        ## the return line
+        rline = []
+        for ov in outputs:
+            rline.append("{}'''".format(ov.name))
+
+        lines.append(indent + "return (" + ", ".join(rline) + ")")
 
 
         return "\n".join(lines)
@@ -667,7 +690,7 @@ import Control.Monad (liftM)
 import Control.Applicative ((<$>))
 import Foreign.C -- get the C types
 import Foreign.Ptr (Ptr,nullPtr)
-import Foreign.C.String (withCString)
+import Foreign.C.String (withCString, peekCString)
 import Foreign.Marshal (alloca, fromBool)
 import Foreign.Marshal.Utils (withMany)
 import Foreign.Marshal.Array (withArray, peekArray, advancePtr, withArrayLen)
