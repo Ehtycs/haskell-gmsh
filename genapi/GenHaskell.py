@@ -121,7 +121,7 @@ class istring(arg):
     ctype = "CString"
 
     def marshall_in(self):
-        return ["?"]
+        return ["withCString {} $ \\{}' -> do".format(self.name, self.name)]
 
 class ivoidstar(arg):
     htype = "?"
@@ -310,12 +310,22 @@ class argcargv(arg):
     output = False
     def __init__(self, *args):
         self.name = "argv"
-        self.htype = "?"
-        self.ctype = "Ptr CString"
+        self.htype = None
+        self.ctype = None
 
     def marshall_in(self):
         n = self.name
-        return ["?"]
+        return ["let argc' = length argv",
+                "withArgv argv $ \\argv' -> do"]
+
+    def foreignexp(self):
+        return ["CInt", "Ptr CString"]
+
+    def type_signature(self):
+        return ["[String]"]
+
+    def ccall_inputs(self):
+        return "argc' argv'"
 
 def camelcasify(str):
     """ raise the first letter to uppercase """
@@ -440,6 +450,8 @@ class Function:
             calline = ["   {} <- c{}".format(rtype.name, fname)]
         for a in inputs:
             calline.append(a.ccall_inputs())
+        # error pointer to the end
+        calline.append("errptr")
         lines.append(" ".join(calline))
 
         ## check error code
@@ -450,6 +462,7 @@ class Function:
         #if rtype is not None:
             #lines.append("   let {}' = {}".format(rtype.name, rtype.name))
             #lines.append(rtype.marshall_out())
+        lines.append("   return ()")
 
 
         return "\n".join(lines)
@@ -532,72 +545,15 @@ class Module:
             fwd_kwargs['prefix'] = prefix
 
         #fhandle.write("Module {}: \n".format(prefix))
-        # take only two functions from each module at first
-        for f in self.fs[:2]:
+        # take only one function from each module at first
+        for f in self.fs[0:1]:
             fhandle.write(f.to_string(prefix))
             fhandle.write("\n")
 
-        for m in self.submodules:
+        for m in self.submodules[0:1]:
             m.write_module(fhandle, **fwd_kwargs)
 
-haskell_header = """
-{-
-GmshAPI.chs - c2hs definitions of the GMSH C API.
-Copyright (C) 2019  Antero Marjamäki
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License ("LICENSE" file) for more details.
--}
-
-module GmshAPIManual where
-
-import Control.Monad (liftM)
-import Control.Applicative ((<$>))
-import Foreign.C -- get the C types
-import Foreign.Ptr (Ptr,nullPtr)
-import Foreign.C.String (withCString)
-import Foreign.Marshal (alloca)
-import Foreign.Marshal.Utils (withMany)
-import Foreign.Marshal.Array (withArray, peekArray)
-import Foreign.Storable (peek, Storable)
-import Data.Maybe (fromMaybe)
-import Debug.Trace (trace)
-
---import qualified Data.Vector.Storable as VS
-import qualified Data.Vector.Unboxed as V
-
-
---include "gmshc.h"
-
-toInt :: Ptr CInt -> IO Int
-toInt = liftM fromIntegral . peek
-
--- marshaller for argv type "char ** argv"
-argv :: [String] -> (Ptr CString -> IO a) -> IO a
-argv ss f = withMany withCString ss f'
-   where
-      f' x = withArray x f
-
-flatTo2Tuple :: [a] -> [(a,a)]
-flatTo2Tuple (x:y:[]) = [(x,y)]
-flatTo2Tuple (x:y:xs) = (x,y) : flatTo2Tuple xs
-
--- Ptr (Ptr CInt) is a serialized list of integers, i.e.
--- **int is a pointer to an array, not an array of arrays... D'OH!
-peekDimTags :: Int -> Ptr (Ptr CInt) -> IO([(Int, Int)])
-peekDimTags ndimTags arr  = do
-  arr' <- peek arr
-  dimTags <- peekArray ndimTags arr'
-  return $ flatTo2Tuple $ map fromIntegral dimTags
-
-"""
 
 class API:
 
@@ -635,5 +591,117 @@ class API:
 
         with open("GmshAPI.hs", 'w') as f:
             f.write(haskell_header)
-            for m in self.modules:
+            for m in self.modules[0:1]:
                 m.write_module(f)
+
+
+haskell_header = """
+{-
+GmshAPI.chs - c2hs definitions of the GMSH C API.
+Copyright (C) 2019  Antero Marjamäki
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License ("LICENSE" file) for more details.
+-}
+
+module GmshAPI where
+
+import Control.Monad (liftM)
+import Control.Applicative ((<$>))
+import Foreign.C -- get the C types
+import Foreign.Ptr (Ptr,nullPtr)
+import Foreign.C.String (withCString)
+import Foreign.Marshal (alloca)
+import Foreign.Marshal.Utils (withMany)
+import Foreign.Marshal.Array (withArray, peekArray, advancePtr, withArrayLen)
+import Foreign.Storable (peek, Storable)
+import Data.Maybe (fromMaybe)
+import Debug.Trace (trace)
+
+--import qualified Data.Vector.Storable as VS
+import qualified Data.Vector.Unboxed as V
+
+
+--include "gmshc.h"
+
+toInt :: Ptr CInt -> IO Int
+toInt = liftM fromIntegral . peek
+
+-- marshaller for argv type "char ** argv"
+withArgv :: [String] -> (Ptr CString -> IO a) -> IO a
+withArgv ss f = withMany withCString ss f'
+   where
+      f' x = withArray x f
+
+peekInt :: Ptr CInt -> IO(Int)
+peekInt = liftM fromIntegral . peek
+
+
+flatToPairs :: [a] -> [(a,a)]
+flatToPairs [] = []
+flatToPairs (x:y:[]) = [(x,y)]
+flatToPairs (x:y:xs) = (x,y) : flatToPairs xs
+
+pairsToFlat :: [(a,a)] -> [a]
+pairsToFlat lst = reverse $ foldl (\\acc (a,b) -> b:a:acc) [] lst
+
+
+-- Ptr (Ptr CInt) is a serialized list of integers, i.e.
+-- **int is a pointer to an array, not an array of arrays... D'OH!
+peekArrayPairs :: Ptr CInt -> Ptr (Ptr CInt) -> IO([(Int, Int)])
+peekArrayPairs nptr arrptr  = do
+  npairs <- peekInt nptr
+  arr <- peek arrptr
+  flatpairs <- peekArray npairs arr
+  return $ flatToPairs $ map fromIntegral flatpairs
+
+--foldfun :: ([[(CInt, CInt)]], Ptr (Ptr CInt))
+-- -> Int -> IO([[(CInt, CInt)]], Ptr (Ptr CInt))
+
+peekArrayArrayPairs
+  :: Ptr CInt
+  -> Ptr (Ptr CInt)
+  -> Ptr (Ptr (Ptr CInt))
+  -> IO([[(Int, Int)]])
+peekArrayArrayPairs lengthLengthsPtr lengthsPtr arrPtr  =
+  do
+    nlengths <- peekInt lengthLengthsPtr
+    lengthsArr <- peek lengthsPtr
+    lengthsList <- peekArray nlengths lengthsArr
+    arrptr <- peek arrPtr
+    -- okay, so. fold over lengthsList.
+    -- For each element dereference the pointer
+    -- then peek n elements from the array, then advance the outer pointer
+    -- accumulate the list of peeked lists, and the advanced pointer
+    (pairs,_) <- foldl foldfun (return ([], arrptr)) $ map fromIntegral lengthsList
+    return pairs
+
+  where
+    -- foldfun takes the previous IO action and runs it,
+    -- then proceeds to peek and advance ptrs and wraps the results
+    -- in a tuple
+    foldfun action n = do
+        (acc, ptr) <- action
+        aptr <- peek ptr
+        lst <- peekArray n aptr
+        let pairss = flatToPairs $ map fromIntegral lst
+        let newptr = advancePtr ptr 1
+        return ((pairss:acc), newptr)
+
+
+
+checkErrorCodeAndThrow :: String -> Ptr CInt -> IO()
+checkErrorCodeAndThrow funname errptr = do
+  errcode <- peekInt errptr
+  if errcode == 0
+      then return ()
+      else error $ funname ++ " returned nonzero error code: " ++ show errcode
+
+"""

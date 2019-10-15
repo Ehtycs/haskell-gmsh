@@ -12,26 +12,26 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License ("LICENSE" file) for more details.
 -}
-module Main where
+module TestMain where
 
 import Control.Concurrent (runInBoundThread)
 
-import GmshAPIManual
+import GmshAPI
 
 main :: IO ()
 main = do
-  gmshInitialize 0 [] 0
+  gmshInitialize [] 0
 --  gmshModelOccAddPoint 0.0 0.0 0.0 1.0 1
 --  gmshModelOccAddPoint 1.0 1.0 1.0 1.0 2
-  gmshModelOccAddDisk 0.0 0.0 0.0 1.0 1.0 1
-  gmshModelOccAddDisk 0.5 0.0 0.0 1.0 1.0 2
-  gmshModelOccSynchronize
-  (outDimTags, outDimTagsMap) <- gmshModelOccFuse [(2,1)] [(2,2)] (-1) (-1) (-1)
-  print outDimTags
-  print outDimTagsMap
-  gmshModelOccSynchronize
+--  gmshModelOccAddDisk 0.0 0.0 0.0 1.0 1.0 1
+--  gmshModelOccAddDisk 0.5 0.0 0.0 1.0 1.0 2
+--  gmshModelOccSynchronize
+--  (outDimTags, outDimTagsMap) <- gmshModelOccFuse [(2,1)] [(2,2)] (-1) (-1) (-1)
+--  print outDimTags
+--  print outDimTagsMap
+--  gmshModelOccSynchronize
 --  dimtags <- gmshModelGetEntities 0
 
-  gmshFltkRun
+--  gmshFltkRun
   --gmshFinalize
   return ()

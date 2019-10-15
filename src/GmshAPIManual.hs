@@ -42,81 +42,6 @@ withArgv ss f = withMany withCString ss f'
    where
       f' x = withArray x f
 
-
-
-
-gmshInitialize :: Int -> [String] -> Int -> IO()
-gmshInitialize argc ss readConfigFiles = do
-  let argc' = fromIntegral argc
-  let readConfigFiles' = fromIntegral readConfigFiles
-  withArgv ss $ \argv' -> do
-    alloca $ \errptr -> do
-      cgmshInitialize argc' argv' readConfigFiles' errptr
-      checkErrorCodeAndThrow "gmshInitialize" errptr
-      return ()
-
-foreign import ccall unsafe "gmshc.h gmshInitialize"
-  cgmshInitialize :: CInt
-                  -> (Ptr CString)
-                  -> CInt
-                  -> Ptr CInt
-                  -> IO()
-
-gmshModelOccAddPoint :: Double -> Double -> Double -> Double -> Int -> IO()
-gmshModelOccAddPoint x y z c tag = do
-  let x' = realToFrac x
-  let y' = realToFrac y
-  let z' = realToFrac z
-  let c' = realToFrac c
-  let tag' = fromIntegral tag
-  alloca $ \errptr -> do
-    cgmshModelOccAddPoint x' y' z' c' tag' errptr
-    checkErrorCodeAndThrow "gmshModelOccAddPoint" errptr
-    return ()
-
-foreign import ccall unsafe "gmshc.h gmshModelOccAddPoint"
-  cgmshModelOccAddPoint
-    :: CDouble
-    -> CDouble
-    -> CDouble
-    -> CDouble
-    -> CInt
-    -> Ptr CInt
-    -> IO()
-
-gmshModelOccSynchronize :: IO()
-gmshModelOccSynchronize = do
-  alloca $ \errptr -> do
-    cgmshModelOccSynchronize errptr
-    checkErrorCodeAndThrow "gmshModelOccSynchronize" errptr
-    return ()
-
-foreign import ccall unsafe "gmshc.h gmshModelOccSynchronize"
-  cgmshModelOccSynchronize :: Ptr CInt -> IO()
-
-gmshFltkRun :: IO()
-gmshFltkRun = do
-  alloca $ \errptr -> do
-    cgmshFltkRun errptr
-    checkErrorCodeAndThrow "gmshFltkRun" errptr
-    return ()
-
-foreign import ccall unsafe "gmshc.h gmshFltkRun"
-  cgmshFltkRun :: Ptr CInt -> IO()
-
--- convert a vector of things into a vector of pairs
--- maybe a better way to do it in the future
--- flatTo2Tuple :: V.Unbox a => V.Vector a -> V.Vector (a,a)
--- flatTo2Tuple xs = V.ifilter (\i _ -> even i) $ V.zip xs (V.tail xs)
---
--- -- Peek a c array into a vector of numeric things
--- peekVector
---   :: (V.Unbox a, Num a, Integral b, Storable b)
---   => Int -> Ptr b -> IO(V.Vector a)
--- peekVector len arr = V.fromList <$> map fromIntegral <$> peekArray len arr
-
--- Check the error code (peek from the pointer) and throw an error
--- if it's not zero.
 peekInt :: Ptr CInt -> IO(Int)
 peekInt = liftM fromIntegral . peek
 
@@ -180,6 +105,69 @@ checkErrorCodeAndThrow funname errptr = do
   if errcode == 0
       then return ()
       else error $ funname ++ " returned nonzero error code: " ++ show errcode
+
+
+
+gmshInitialize :: Int -> [String] -> Int -> IO()
+gmshInitialize argc ss readConfigFiles = do
+  let argc' = fromIntegral argc
+  let readConfigFiles' = fromIntegral readConfigFiles
+  withArgv ss $ \argv' -> do
+    alloca $ \errptr -> do
+      cgmshInitialize argc' argv' readConfigFiles' errptr
+      checkErrorCodeAndThrow "gmshInitialize" errptr
+      return ()
+
+foreign import ccall unsafe "gmshc.h gmshInitialize"
+  cgmshInitialize :: CInt
+                  -> (Ptr CString)
+                  -> CInt
+                  -> Ptr CInt
+                  -> IO()
+
+gmshModelOccAddPoint :: Double -> Double -> Double -> Double -> Int -> IO()
+gmshModelOccAddPoint x y z c tag = do
+  let x' = realToFrac x
+  let y' = realToFrac y
+  let z' = realToFrac z
+  let c' = realToFrac c
+  let tag' = fromIntegral tag
+  alloca $ \errptr -> do
+    cgmshModelOccAddPoint x' y' z' c' tag' errptr
+    checkErrorCodeAndThrow "gmshModelOccAddPoint" errptr
+    return ()
+
+foreign import ccall unsafe "gmshc.h gmshModelOccAddPoint"
+  cgmshModelOccAddPoint
+    :: CDouble
+    -> CDouble
+    -> CDouble
+    -> CDouble
+    -> CInt
+    -> Ptr CInt
+    -> IO()
+
+gmshModelOccSynchronize :: IO()
+gmshModelOccSynchronize = do
+  alloca $ \errptr -> do
+    cgmshModelOccSynchronize errptr
+    checkErrorCodeAndThrow "gmshModelOccSynchronize" errptr
+    return ()
+
+foreign import ccall unsafe "gmshc.h gmshModelOccSynchronize"
+  cgmshModelOccSynchronize :: Ptr CInt -> IO()
+
+gmshFltkRun :: IO()
+gmshFltkRun = do
+  alloca $ \errptr -> do
+    cgmshFltkRun errptr
+    checkErrorCodeAndThrow "gmshFltkRun" errptr
+    return ()
+
+foreign import ccall unsafe "gmshc.h gmshFltkRun"
+  cgmshFltkRun :: Ptr CInt -> IO()
+
+
 
 {-
 GMSH_API void gmshModelOccFuse(int * objectDimTags, size_t objectDimTags_n,

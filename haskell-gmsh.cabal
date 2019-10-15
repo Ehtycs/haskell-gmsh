@@ -20,6 +20,7 @@ library
                      , vector
   extra-libraries:     gmsh
   exposed-modules:     GmshAPIManual
+                     , GmshAPI
 
 executable Test
   hs-source-dirs:      src
@@ -29,3 +30,4 @@ executable Test
                      , vector
   extra-libraries:     gmsh
   other-modules:       GmshAPIManual
+                     , GmshAPI
