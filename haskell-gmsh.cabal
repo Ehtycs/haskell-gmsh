@@ -17,13 +17,17 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
+                     , vector
   extra-libraries:     gmsh
   exposed-modules:     GmshAPIManual
+                     , GmshAPI
 
 executable Test
   hs-source-dirs:      src
   default-language:    Haskell2010
   main-is:             TestMain.hs
   build-depends:       base >= 4.7 && < 5
+                     , vector
   extra-libraries:     gmsh
   other-modules:       GmshAPIManual
+                     , GmshAPI
