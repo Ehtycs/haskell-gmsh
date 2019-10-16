@@ -20,7 +20,8 @@ import GmshAPI
 
 main :: IO ()
 main = do
-  gmshInitialize [] False
+   putStrLn "Moi"
+--  gmshInitialize [] False
 --  gmshModelOccAddPoint 0.0 0.0 0.0 1.0 1
 --  gmshModelOccAddPoint 1.0 1.0 1.0 1.0 2
 --  gmshModelOccAddDisk 0.0 0.0 0.0 1.0 1.0 1
@@ -34,4 +35,4 @@ main = do
 
 --  gmshFltkRun
   --gmshFinalize
-  return ()
+   return ()

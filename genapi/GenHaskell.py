@@ -46,7 +46,8 @@ class oarg(arg):
     def type_in_return(self):
         return [self.ctype]
 
-
+    def return_name(self):
+        return "{}'''".format(self.name)
 
 # these things are not given as return values from the C api,
 # because that's impossible
@@ -61,7 +62,7 @@ class input_array(arg):
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}'_n".format(n, n)
+        return "{}' {}_n'".format(n, n)
 
 class input_arrayarray(arg):
 
@@ -73,7 +74,7 @@ class input_arrayarray(arg):
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}'_n {}'_nn".format(n,n,n)
+        return "{}' {}_n' {}_nn'".format(n,n,n)
 
 class output_array(oarg):
 
@@ -86,7 +87,7 @@ class output_array(oarg):
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}'_n".format(n, n)
+        return "{}' {}_n'".format(n, n)
 
 class output_arrayarray(oarg):
 
@@ -99,7 +100,7 @@ class output_arrayarray(oarg):
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}'_n {}'_nn".format(n,n,n)
+        return "{}' {}_n' {}_nn'".format(n,n,n)
 
 # input types
 class ibool(arg):
@@ -150,21 +151,24 @@ class ivectorint(input_array):
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayIntLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectorsize(input_array):
     htype = "[Int]"
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayIntLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectordouble(input_array):
     htype = "[Double]"
-    ctype = "Double"
+    ctype = "CDouble"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayDoubleLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectorstring(input_array):
     htype = "[String]"
@@ -178,7 +182,8 @@ class ivectorpair(input_array):
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayPairLen {n} $ \\{n}_n' {n}' -> do"]
 
 
 # seems like not in use
@@ -191,7 +196,8 @@ class ivectorvectorsize(input_arrayarray):
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayArrayIntLen {n} $ \\{n}_nn' {n}_n' {n}' -> do"]
 
 class ivectorvectordouble(input_arrayarray):
     htype = "[[Double]]"
@@ -199,7 +205,7 @@ class ivectorvectordouble(input_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["withArrayArrayLen $ \\{}' {}'_n {}'_nn -> do".format(n,n,n)]
+        return [f"withArrayArrayIntLen $ \\{n}' {n}_n' {n}_nn' -> do"]
 
 
 # output types
@@ -229,6 +235,11 @@ class osize(oarg):
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{}' -> do".format(n)]
+
+    def marshall_out(self):
+        n = self.name
+        return ["{}'' <- peek {}'".format(n,n),
+                "let {}''' = fromIntegral {}''".format(n,n)]
 
 class odouble(oarg):
     htype = "Double"
@@ -269,7 +280,14 @@ class ovectorint(output_array):
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}'_n -> do".format(n)]
+                "   alloca $ \\{}_n' -> do".format(n)]
+
+    def marshall_out(self):
+        n = self.name
+        return ["{}'' <- peekArrayInt {}_n' {}'".format(n,n,n)]
+
+    def return_name(self):
+        return "{}''".format(self.name)
 
 class ovectorsize(output_array):
     htype = "[Int]"
@@ -282,6 +300,13 @@ class ovectorsize(output_array):
         return ["alloca $ \\{}' -> do".format(n),
                 "   alloca $ \\{}_n' -> do".format(n)]
 
+    def marshall_out(self):
+        n = self.name
+        return ["{}'' <- peekArrayInt {}_n' {}'".format(n,n,n)]
+
+    def return_name(self):
+        return "{}''".format(self.name)
+
 class ovectordouble(output_array):
     htype = "[Double]"
     ctype = "CDouble"
@@ -292,6 +317,13 @@ class ovectordouble(output_array):
         n = self.name
         return ["alloca $ \\{}' -> do".format(n),
                 "   alloca $ \\{}_n' -> do".format(n)]
+
+    def marshall_out(self):
+        n = self.name
+        return ["{}'' <- peekArrayDouble {}_n' {}'".format(n,n,n)]
+
+    def return_name(self):
+        return "{}''".format(self.name)
 
 class ovectorstring(output_array):
     htype = "[String]"
@@ -304,8 +336,16 @@ class ovectorstring(output_array):
         return ["alloca $ \\{}' -> do".format(n),
                 "   alloca $ \\{}_n' -> do".format(n)]
 
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayString {n}_n' {n}'"]
+
+    def return_name(self):
+        n = self.name
+        return f"{n}''"
+
 class ovectorpair(output_array):
-    htype = "Int"
+    htype = "[(Int,Int)]"
     ctype = "CInt"
 
     indent = 2
@@ -315,6 +355,12 @@ class ovectorpair(output_array):
         return ["alloca $ \\{}' -> do".format(n),
                 "   alloca $ \\{}_n' -> do".format(n)]
 
+    def marshall_out(self):
+        n = self.name
+        return ["{}'' <- peekArrayPairs {}_n' {}'".format(n,n,n)]
+
+    def return_name(self):
+        return "{}''".format(self.name)
 
 # Not used
 # class ovectorvectorint(ivectorvectorint):
@@ -330,8 +376,16 @@ class ovectorvectorsize(output_arrayarray):
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}'_n -> do".format(n),
-                "      alloca $ \\{}'_nn -> do".format(n)]
+                "   alloca $ \\{}_n' -> do".format(n),
+                "      alloca $ \\{}_nn' -> do".format(n)]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayArrayInt {n}_nn' {n}_n' {n}'"]
+
+    def return_name(self):
+        n = self.name
+        return f"{n}''"
 
 class ovectorvectordouble(output_arrayarray):
     output = True
@@ -343,8 +397,8 @@ class ovectorvectordouble(output_arrayarray):
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}'_n -> do".format(n),
-                "      alloca $ \\{}'_nn -> do".format(n)]
+                "   alloca $ \\{}_n' -> do".format(n),
+                "      alloca $ \\{}_nn' -> do".format(n)]
 
 class ovectorvectorpair(output_arrayarray):
     output = True
@@ -356,8 +410,8 @@ class ovectorvectorpair(output_arrayarray):
     def marshall_in(self):
         n = self.name
         return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}'_n -> do".format(n),
-                "      alloca $ \\{}'_nn -> do".format(n)]
+                "   alloca $ \\{}_n' -> do".format(n),
+                "      alloca $ \\{}_nn' -> do".format(n)]
 
 class argcargv(arg):
     output = False
@@ -511,7 +565,7 @@ class Function:
         if rtype is None:
             calline = [indent+"c{}".format(fname)]
         else:
-            calline = [indent+"{} <- c{}".format(rtype.name, fname)]
+            calline = [indent+"{}'' <- c{}".format(rtype.name, fname)]
         for a in self.args:
             calline.append(a.ccall_inputs())
         # error pointer to the end
@@ -523,20 +577,25 @@ class Function:
 
         ## output marshalling
         if rtype is not None:
-            #lines.append("   let {}' = {}".format(rtype.name, rtype.name))
-            lines.append(rtype.marshall_out())
+            # skip the first line in hope that it is enough. (no need to )
+            # unwrap pointer as the function call already uses <-
+            for l in rtype.marshall_out()[1:]:
+                 lines.append(indent + l)
 
         for ov in outputs:
             for l in ov.marshall_out():
                 lines.append(indent + l)
 
         ## the return line
-        rline = []
+        if rtype is not None:
+            rline = [rtype.return_name()]
+        else:
+            rline = []
+
         for ov in outputs:
-            rline.append("{}'''".format(ov.name))
+            rline.append("{}".format(ov.return_name()))
 
         lines.append(indent + "return (" + ", ".join(rline) + ")")
-
 
         return "\n".join(lines)
 
@@ -623,7 +682,7 @@ class Module:
             fhandle.write(f.to_string(prefix))
             fhandle.write("\n")
 
-        for m in self.submodules[0:1]:
+        for m in self.submodules[0:2]:
             m.write_module(fhandle, **fwd_kwargs)
 
 
@@ -664,7 +723,7 @@ class API:
 
         with open("GmshAPI.hs", 'w') as f:
             f.write(haskell_header)
-            for m in self.modules[0:1]:
+            for m in self.modules:
                 m.write_module(f)
 
 
@@ -707,8 +766,53 @@ withArgv ss f = withMany withCString ss f'
    where
       f' x = withArray x f
 
+
+-- THIS DOESN'T WORK, NEEDS alloca TO ALLOCATE THE Ptr CInt,
+
+withArrayArrayLen
+    :: (Storable a)
+    => [[a]]
+    -> (CInt -> Ptr CInt -> Ptr (Ptr a) -> IO(b))
+    -> IO(c)
+withArrayArrayLen = undefined
+
+withArrayArrayIntLen
+    :: [[Int]]
+    -> (CInt -> Ptr CInt -> Ptr (Ptr a) -> IO(b))
+    -> IO(c)
+withArrayArrayIntLen arr f =
+    let arr' = map (map fromIntegral) arr
+        f' len' len ptr = f (fromIntegral len') (fromIntegral len) ptr
+    in withArrayArrayLen arr' f'
+
+withArrayIntLen :: [Int] -> (CInt -> Ptr CInt -> IO(b)) -> IO(b)
+withArrayIntLen arr f =
+    let arr' = map fromIntegral arr
+        f' len ptr = f (fromIntegral len) ptr
+    in withArrayLen arr' f'
+
+withArrayPairLen
+    :: [(Int, Int)]
+    -> (CInt -> Ptr CInt -> IO(b))
+    -> IO(c)
+withArrayPairLen = undefined
+
+withArrayDoubleLen :: [Double] -> (CInt -> Ptr CDouble -> IO(b)) -> IO(b)
+withArrayDoubleLen arr f =
+    let arr' = map realToFrac arr'
+        f' len ptr = f (fromIntegral len) ptr
+    in withArrayLen arr' f'
+
+
 peekInt :: Ptr CInt -> IO(Int)
 peekInt = liftM fromIntegral . peek
+
+peekArrayString :: Ptr CInt -> Ptr (Ptr CString) -> IO([String])
+peekArrayString nptr arrptr = do
+    nstrs <- peekInt nptr
+    arr <- peek arrptr
+    strings <- peekArray nstrs arr
+    sequence $ map peekCString strings
 
 
 flatToPairs :: [a] -> [(a,a)]
@@ -729,8 +833,29 @@ peekArrayPairs nptr arrptr  = do
   flatpairs <- peekArray npairs arr
   return $ flatToPairs $ map fromIntegral flatpairs
 
+peekArrayInt :: Ptr CInt -> Ptr (Ptr CInt) -> IO([Int])
+peekArrayInt nptr arrptr  = do
+  nints <- peekInt nptr
+  arr <- peek arrptr
+  ints <- peekArray nints arr
+  return $ map fromIntegral ints
+
+peekArrayDouble :: Ptr CInt -> Ptr (Ptr CDouble) -> IO([Double])
+peekArrayDouble nptr arrptr  = do
+    nints <- peekInt nptr
+    arr <- peek arrptr
+    ints <- peekArray nints arr
+    return $ map realToFrac ints
+
 --foldfun :: ([[(CInt, CInt)]], Ptr (Ptr CInt))
 -- -> Int -> IO([[(CInt, CInt)]], Ptr (Ptr CInt))
+
+peekArrayArrayInt
+  :: Ptr CInt
+  -> Ptr (Ptr CInt)
+  -> Ptr (Ptr (Ptr CInt))
+  -> IO([[Int]])
+peekArrayArrayInt = undefined
 
 peekArrayArrayPairs
   :: Ptr CInt
