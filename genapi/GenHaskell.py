@@ -18,8 +18,16 @@
 
 
 class arg:
-    output = False
-    indent = 0
+    """ Basic datatype of an argument. Every datatype inherits this constructor
+    and also default behaviour from here.
+
+    The methods all return lists of strings, which are then combined on the
+    functions which really construct the function definitions etc.
+    """
+    output = False  # whether this is an output argument or not
+    indent = 0      # how many levels of indentation is needed on
+                    # function body
+
     def __init__(self, name=None, value=None,  python_value=None, julia_value=None):
 
         # "data" is a reserved keyword in haskell so mangle any
@@ -31,20 +39,29 @@ class arg:
         self.value = value
 
     def foreignexp(self):
+        """ This "renders" the argument to the "foreign import ccall" line """
         return [self.ctype]
 
     def type_signature(self):
+        """ This "renders" the argument to the type signature line """
         return [self.htype]
 
     def ccall_inputs(self):
-        return "{}'".format(self.name)
+        """ This "renders" the argument to the c call line """
+        return f"{self.name}'"
 
 class oarg(arg):
+    """ Basic datatype of an output argument (basically c pointer of some sort)
+    in the c API call.
+
+    In Haskell, these get wrapped to Ptr CX types where X is usually
+    Int, Double, etc... but they must be converted to real Haskell values
+    before returning them from the API functions."""
+
     output = True
+
     def foreignexp(self):
-        # these things are either the return values of the C function
-        # or ordinary "reference" variables
-        return ["Ptr {}".format(self.ctype)]
+        return [f"Ptr {self.ctype}"]
 
     def type_signature(self):
         return [self.htype]
@@ -53,60 +70,71 @@ class oarg(arg):
         return [self.ctype]
 
     def return_name(self):
-        return "{}'''".format(self.name)
+        return f"{self.name}'''"
 
-# these things are not given as return values from the C api,
-# because that's impossible
+
 class input_array(arg):
-
+    """ Base class for input arrays. These things have a lenght and a pointer
+    in the C API calls .
+    """
     indent = 1
 
 
     def foreignexp(self):
-        out = ["Ptr {}".format(self.ctype), "CInt"]
+        out = [f"Ptr {self.ctype}", "CInt"]
         return out
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}_n'".format(n, n)
+        return f"{n}' {n}_n'"
 
 class input_arrayarray(arg):
+    """ Base class for 2-dimensional input arrays. These things have length
+    (dim 1), an array of lengths (in dim 2) and a double pointer to the actual
+    data.
+
+
+    """
 
     indent = 2
 
     def foreignexp(self):
-        out = ["Ptr (Ptr {})".format(self.ctype), "Ptr CInt", "CInt"]
+        out = [f"Ptr (Ptr {self.ctype})", "Ptr CInt", "CInt"]
         return out
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}_n' {}_nn'".format(n,n,n)
+        return f"{n}' {n}_n' {n}_nn'"
 
 class output_array(oarg):
-
+    """ Base class for output arrays. These have a pointer to length, and a
+    double pointer in the C API
+    """
     indent = 1
 
 
     def foreignexp(self):
-        return ["Ptr ( Ptr {})".format(self.ctype),
+        return [f"Ptr ( Ptr {self.ctype})",
                 "Ptr CInt"]
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}_n'".format(n, n)
+        return f"{n}' {n}_n'"
 
 class output_arrayarray(oarg):
+    """ Base class for multidimensional output arrays. These have basically
+    just one more level of pointers to same things as input_arrayarray """
 
     indent = 2
 
     def foreignexp(self):
-        return ["Ptr (Ptr (Ptr {}))".format(self.ctype),
+        return [f"Ptr (Ptr (Ptr {self.ctype}))",
                 "Ptr (Ptr CInt)",
                 "Ptr CInt"]
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}_n' {}_nn'".format(n,n,n)
+        return f"{n}' {n}_n' {n}_nn'"
 
 # input types
 class ibool(arg):
@@ -114,28 +142,32 @@ class ibool(arg):
     ctype = "CBool"
 
     def marshall_in(self):
-        return ["let {}' = fromBool {}".format(self.name, self.name)]
+        n = self.name
+        return [f"let {n}' = fromBool {n}"]
 
 class iint(arg):
     htype = "Int"
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["let {}' = fromIntegral {}".format(self.name, self.name)]
+        n = self.name
+        return [f"let {n}' = fromIntegral {n}"]
 
 class isize(arg):
     htype = "Int"
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["let {}' = fromIntegral {}".format(self.name, self.name)]
+        n = self.name
+        return [f"let {n}' = fromIntegral {n}"]
 
 class idouble(arg):
     htype = "Double"
     ctype = "CDouble"
 
     def marshall_in(self):
-        return ["let {}' = realToFrac {}".format(self.name, self.name)]
+        n = self.name
+        return [f"let {n}' = realToFrac {n}"]
 
 class istring(arg):
     htype = "String"
@@ -143,7 +175,8 @@ class istring(arg):
     indent = 1
 
     def marshall_in(self):
-        return ["withCString {} $ \\{}' -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withCString {n} $ \\{n}' -> do"]
 
 class ivoidstar(arg):
     """
@@ -229,12 +262,12 @@ class oint(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peek {}'".format(n,n),
-                "let {}''' = fromIntegral {}''".format(n,n)]
+        return [f"{n}'' <- peek {n}'",
+                f"let {n}''' = fromIntegral {n}''"]
 
 
 class osize(oarg):
@@ -245,12 +278,12 @@ class osize(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peek {}'".format(n,n),
-                "let {}''' = fromIntegral {}''".format(n,n)]
+        return [f"{n}'' <- peek {n}'",
+                f"let {n}''' = fromIntegral {n}''"]
 
 class odouble(oarg):
     htype = "Double"
@@ -260,12 +293,12 @@ class odouble(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peek {}'".format(n,n),
-                "let {}''' = realToFrac {}''".format(n,n)]
+        return [f"{n}'' <- peek {n}'",
+                f"let {n}''' = realToFrac {n}''"]
 
 class ostring(oarg):
     htype = "String"
@@ -275,12 +308,12 @@ class ostring(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peek {}'".format(n,n),
-                "{}''' <- peekCString {}''".format(n,n)]
+        return [f"{n}'' <- peek {n}'",
+                f"{n}''' <- peekCString {n}''"]
 
 class ovectorint(output_array):
     htype = "[Int]"
@@ -290,15 +323,15 @@ class ovectorint(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peekArrayInt {}_n' {}'".format(n,n,n)]
+        return [f"{n}'' <- peekArrayInt {n}_n' {n}'"]
 
     def return_name(self):
-        return "{}''".format(self.name)
+        return f"{self.name}''"
 
 class ovectorsize(output_array):
     htype = "[Int]"
@@ -308,15 +341,15 @@ class ovectorsize(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peekArrayInt {}_n' {}'".format(n,n,n)]
+        return [f"{n}'' <- peekArrayInt {n}_n' {n}'"]
 
     def return_name(self):
-        return "{}''".format(self.name)
+        return f"{self.name}''"
 
 class ovectordouble(output_array):
     htype = "[Double]"
@@ -326,15 +359,15 @@ class ovectordouble(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peekArrayDouble {}_n' {}'".format(n,n,n)]
+        return [f"{n}'' <- peekArrayDouble {n}_n' {n}'"]
 
     def return_name(self):
-        return "{}''".format(self.name)
+        return f"{self.name}''"
 
 class ovectorstring(output_array):
     htype = "[String]"
@@ -344,8 +377,8 @@ class ovectorstring(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
 
     def marshall_out(self):
         n = self.name
@@ -363,15 +396,15 @@ class ovectorpair(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peekArrayPairs {}_n' {}'".format(n,n,n)]
+        return [f"{n}'' <- peekArrayPairs {n}_n' {n}'"]
 
     def return_name(self):
-        return "{}''".format(self.name)
+        return f"{self.name}''"
 
 # Not used
 # class ovectorvectorint(ivectorvectorint):
@@ -386,9 +419,9 @@ class ovectorvectorsize(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n),
-                "      alloca $ \\{}_nn' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do",
+                f"      alloca $ \\{n}_nn' -> do"]
 
     def marshall_out(self):
         n = self.name
@@ -437,7 +470,7 @@ class ovectorvectorpair(output_arrayarray):
         return [f"{n}'' <- peekArrayArrayPairs {n}_nn' {n}_n' {n}'"]
 
     def return_name(self):
-        return "{}''".format(self.name)
+        return f"{self.name}''"
 
 class argcargv(arg):
     output = False
@@ -589,9 +622,9 @@ class Function:
 
         ## the actual call
         if rtype is None:
-            calline = [indent+"c{}".format(fname)]
+            calline = [indent+f"c{fname}"]
         else:
-            calline = [indent+"{}'' <- c{}".format(rtype.name, fname)]
+            calline = [indent+f"{rtype.name}'' <- c{fname}"]
         for a in self.args:
             calline.append(a.ccall_inputs())
         # error pointer to the end
@@ -599,7 +632,7 @@ class Function:
         lines.append(" ".join(calline))
 
         ## check error code
-        lines.append(indent+"checkErrorCodeAndThrow \"{}\" errptr".format(fname))
+        lines.append(indent+f"checkErrorCodeAndThrow \"{fname}\" errptr")
 
         ## output marshalling
         if rtype is not None:
@@ -619,7 +652,7 @@ class Function:
             rline = []
 
         for ov in outputs:
-            rline.append("{}".format(ov.return_name()))
+            rline.append(ov.return_name())
 
         lines.append(indent + "return (" + ", ".join(rline) + ")")
 
@@ -647,7 +680,7 @@ class Function:
         in the c call.) """
 
         fname = prefix + camelcasify(self.name)
-        lines = ["foreign import ccall safe \"gmshc.h {}\"".format(fname)]
+        lines = [f"foreign import ccall safe \"gmshc.h {fname}\""]
         lines.append("   {}".format("c"+fname))
 
         # print arguments (c types), always at least errorcode
@@ -655,15 +688,15 @@ class Function:
         args = list(self.args) + [oint("errcode")]
         types = flatten2([a.foreignexp() for a in args])
 
-        lines.append("      :: {}".format(types[0]))
+        lines.append(f"      :: {types[0]}")
         for t in types[1:]:
-            lines.append("      -> {}".format(t))
+            lines.append(f"      -> {t}")
 
         if self.return_type is None:
             lines.append("      -> IO()")
         else:
             t = self.return_type.type_in_return()[0]
-            lines.append("      -> IO({})".format(t))
+            lines.append(f"      -> IO({t})")
 
         return "\n".join(lines)
 
@@ -705,8 +738,6 @@ class Module:
             prefix = kwprefix+camelcasify(self.name)
             fwd_kwargs['prefix'] = prefix
 
-        #fhandle.write("Module {}: \n".format(prefix))
-        # take only one function from each module at first
         for f in self.fs:
             fhandle.write(f.to_string(prefix))
             fhandle.write("\n")
@@ -961,9 +992,6 @@ peekArrayArrayPairs
   -> Ptr (Ptr (Ptr CInt))
   -> IO([[(Int, Int)]])
 peekArrayArrayPairs  = peekArrayArray $ flatToPairs . map fromIntegral
-
-
-
 
 checkErrorCodeAndThrow :: String -> Ptr CInt -> IO()
 checkErrorCodeAndThrow funname errptr = do
