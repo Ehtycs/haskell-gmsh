@@ -18,27 +18,50 @@
 
 
 class arg:
-    output = False
-    indent = 0
+    """ Basic datatype of an argument. Every datatype inherits this constructor
+    and also default behaviour from here.
+
+    The methods all return lists of strings, which are then combined on the
+    functions which really construct the function definitions etc.
+    """
+    output = False  # whether this is an output argument or not
+    indent = 0      # how many levels of indentation is needed on
+                    # function body
+
     def __init__(self, name=None, value=None,  python_value=None, julia_value=None):
+
+        # "data" is a reserved keyword in haskell so mangle any
+        # instances of it
+        if name == "data":
+            name = "daatta"
+
         self.name = name
         self.value = value
 
     def foreignexp(self):
+        """ This "renders" the argument to the "foreign import ccall" line """
         return [self.ctype]
 
     def type_signature(self):
+        """ This "renders" the argument to the type signature line """
         return [self.htype]
 
     def ccall_inputs(self):
-        return "{}'".format(self.name)
+        """ This "renders" the argument to the c call line """
+        return f"{self.name}'"
 
 class oarg(arg):
+    """ Basic datatype of an output argument (basically c pointer of some sort)
+    in the c API call.
+
+    In Haskell, these get wrapped to Ptr CX types where X is usually
+    Int, Double, etc... but they must be converted to real Haskell values
+    before returning them from the API functions."""
+
     output = True
+
     def foreignexp(self):
-        # these things are either the return values of the C function
-        # or ordinary "reference" variables
-        return ["Ptr {}".format(self.ctype)]
+        return [f"Ptr {self.ctype}"]
 
     def type_signature(self):
         return [self.htype]
@@ -46,60 +69,72 @@ class oarg(arg):
     def type_in_return(self):
         return [self.ctype]
 
+    def return_name(self):
+        return f"{self.name}'''"
 
 
-# these things are not given as return values from the C api,
-# because that's impossible
 class input_array(arg):
-
+    """ Base class for input arrays. These things have a lenght and a pointer
+    in the C API calls .
+    """
     indent = 1
 
 
     def foreignexp(self):
-        out = ["Ptr {}".format(self.ctype), "CInt"]
+        out = [f"Ptr {self.ctype}", "CInt"]
         return out
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}'_n".format(n, n)
+        return f"{n}' {n}_n'"
 
 class input_arrayarray(arg):
+    """ Base class for 2-dimensional input arrays. These things have length
+    (dim 1), an array of lengths (in dim 2) and a double pointer to the actual
+    data.
+
+
+    """
 
     indent = 2
 
     def foreignexp(self):
-        out = ["Ptr (Ptr {})".format(self.ctype), "Ptr CInt", "CInt"]
+        out = [f"Ptr (Ptr {self.ctype})", "Ptr CInt", "CInt"]
         return out
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}'_n {}'_nn".format(n,n,n)
+        return f"{n}' {n}_n' {n}_nn'"
 
 class output_array(oarg):
-
+    """ Base class for output arrays. These have a pointer to length, and a
+    double pointer in the C API
+    """
     indent = 1
 
 
     def foreignexp(self):
-        return ["Ptr ( Ptr {})".format(self.ctype),
+        return [f"Ptr ( Ptr {self.ctype})",
                 "Ptr CInt"]
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}'_n".format(n, n)
+        return f"{n}' {n}_n'"
 
 class output_arrayarray(oarg):
+    """ Base class for multidimensional output arrays. These have basically
+    just one more level of pointers to same things as input_arrayarray """
 
     indent = 2
 
     def foreignexp(self):
-        return ["Ptr (Ptr (Ptr {}))".format(self.ctype),
+        return [f"Ptr (Ptr (Ptr {self.ctype}))",
                 "Ptr (Ptr CInt)",
                 "Ptr CInt"]
 
     def ccall_inputs(self):
         n = self.name
-        return "{}' {}'_n {}'_nn".format(n,n,n)
+        return f"{n}' {n}_n' {n}_nn'"
 
 # input types
 class ibool(arg):
@@ -107,28 +142,32 @@ class ibool(arg):
     ctype = "CBool"
 
     def marshall_in(self):
-        return ["let {}' = fromBool {}".format(self.name, self.name)]
+        n = self.name
+        return [f"let {n}' = fromBool {n}"]
 
 class iint(arg):
     htype = "Int"
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["let {}' = fromIntegral {}".format(self.name, self.name)]
+        n = self.name
+        return [f"let {n}' = fromIntegral {n}"]
 
 class isize(arg):
     htype = "Int"
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["let {}' = fromIntegral {}".format(self.name, self.name)]
+        n = self.name
+        return [f"let {n}' = fromIntegral {n}"]
 
 class idouble(arg):
     htype = "Double"
     ctype = "CDouble"
 
     def marshall_in(self):
-        return ["let {}' = realToFrac {}".format(self.name, self.name)]
+        n = self.name
+        return [f"let {n}' = realToFrac {n}"]
 
 class istring(arg):
     htype = "String"
@@ -136,49 +175,59 @@ class istring(arg):
     indent = 1
 
     def marshall_in(self):
-        return ["withCString {} $ \\{}' -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withCString {n} $ \\{n}' -> do"]
 
 class ivoidstar(arg):
+    """
+    This can't be used but needs to be defined in order to run the api_gen
+    """
     htype = "?"
     ctype = "?"
 
     def marshall_in(self):
-        return ["?"]
+        assert False , "Datatype void* is not applicable in Haskell"
+        return None
 
 class ivectorint(input_array):
     htype = "[Int]"
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayIntLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectorsize(input_array):
     htype = "[Int]"
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayIntLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectordouble(input_array):
     htype = "[Double]"
-    ctype = "Double"
+    ctype = "CDouble"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayDoubleLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectorstring(input_array):
     htype = "[String]"
     ctype = "CString"
 
     def marshall_in(self):
-        return ["?"]
+        n = self.name
+        return [f"withArrayStringLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectorpair(input_array):
     htype = "[(Int, Int)]"
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayPairLen {n} $ \\{n}_n' {n}' -> do"]
 
 
 # seems like not in use
@@ -191,7 +240,8 @@ class ivectorvectorsize(input_arrayarray):
     ctype = "CInt"
 
     def marshall_in(self):
-        return ["withArrayLen $ \\{}' {}'_n -> do".format(self.name, self.name)]
+        n = self.name
+        return [f"withArrayArrayIntLen {n} $ \\{n}_nn' {n}_n' {n}' -> do"]
 
 class ivectorvectordouble(input_arrayarray):
     htype = "[[Double]]"
@@ -199,7 +249,7 @@ class ivectorvectordouble(input_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["withArrayArrayLen $ \\{}' {}'_n {}'_nn -> do".format(n,n,n)]
+        return [f"withArrayArrayDoubleLen {n} $ \\{n}_nn' {n}_n' {n}' -> do"]
 
 
 # output types
@@ -212,12 +262,12 @@ class oint(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peek {}'".format(n,n),
-                "let {}''' = fromIntegral {}''".format(n,n)]
+        return [f"{n}'' <- peek {n}'",
+                f"let {n}''' = fromIntegral {n}''"]
 
 
 class osize(oarg):
@@ -228,7 +278,12 @@ class osize(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peek {n}'",
+                f"let {n}''' = fromIntegral {n}''"]
 
 class odouble(oarg):
     htype = "Double"
@@ -238,12 +293,12 @@ class odouble(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peek {}'".format(n,n),
-                "let {}''' = realToFrac {}''".format(n,n)]
+        return [f"{n}'' <- peek {n}'",
+                f"let {n}''' = realToFrac {n}''"]
 
 class ostring(oarg):
     htype = "String"
@@ -253,12 +308,12 @@ class ostring(oarg):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do"]
 
     def marshall_out(self):
         n = self.name
-        return ["{}'' <- peek {}'".format(n,n),
-                "{}''' <- peekCString {}''".format(n,n)]
+        return [f"{n}'' <- peek {n}'",
+                f"{n}''' <- peekCString {n}''"]
 
 class ovectorint(output_array):
     htype = "[Int]"
@@ -268,8 +323,15 @@ class ovectorint(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}'_n -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayInt {n}_n' {n}'"]
+
+    def return_name(self):
+        return f"{self.name}''"
 
 class ovectorsize(output_array):
     htype = "[Int]"
@@ -279,8 +341,15 @@ class ovectorsize(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayInt {n}_n' {n}'"]
+
+    def return_name(self):
+        return f"{self.name}''"
 
 class ovectordouble(output_array):
     htype = "[Double]"
@@ -290,8 +359,15 @@ class ovectordouble(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayDouble {n}_n' {n}'"]
+
+    def return_name(self):
+        return f"{self.name}''"
 
 class ovectorstring(output_array):
     htype = "[String]"
@@ -301,20 +377,34 @@ class ovectorstring(output_array):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayString {n}_n' {n}'"]
+
+    def return_name(self):
+        n = self.name
+        return f"{n}''"
 
 class ovectorpair(output_array):
-    htype = "Int"
+    htype = "[(Int,Int)]"
     ctype = "CInt"
 
     indent = 2
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do"]
 
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayPairs {n}_n' {n}'"]
+
+    def return_name(self):
+        return f"{self.name}''"
 
 # Not used
 # class ovectorvectorint(ivectorvectorint):
@@ -329,9 +419,17 @@ class ovectorvectorsize(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}'_n -> do".format(n),
-                "      alloca $ \\{}'_nn -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do",
+                f"      alloca $ \\{n}_nn' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayArrayInt {n}_nn' {n}_n' {n}'"]
+
+    def return_name(self):
+        n = self.name
+        return f"{n}''"
 
 class ovectorvectordouble(output_arrayarray):
     output = True
@@ -342,9 +440,17 @@ class ovectorvectordouble(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}'_n -> do".format(n),
-                "      alloca $ \\{}'_nn -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do",
+                f"      alloca $ \\{n}_nn' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayArrayDouble {n}_nn' {n}_n' {n}'"]
+
+    def return_name(self):
+        n = self.name
+        return f"{n}''"
 
 class ovectorvectorpair(output_arrayarray):
     output = True
@@ -355,9 +461,16 @@ class ovectorvectorpair(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}'_n -> do".format(n),
-                "      alloca $ \\{}'_nn -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do",
+                f"      alloca $ \\{n}_nn' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayArrayPairs {n}_nn' {n}_n' {n}'"]
+
+    def return_name(self):
+        return f"{self.name}''"
 
 class argcargv(arg):
     output = False
@@ -509,9 +622,9 @@ class Function:
 
         ## the actual call
         if rtype is None:
-            calline = [indent+"c{}".format(fname)]
+            calline = [indent+f"c{fname}"]
         else:
-            calline = [indent+"{} <- c{}".format(rtype.name, fname)]
+            calline = [indent+f"{rtype.name}'' <- c{fname}"]
         for a in self.args:
             calline.append(a.ccall_inputs())
         # error pointer to the end
@@ -519,24 +632,29 @@ class Function:
         lines.append(" ".join(calline))
 
         ## check error code
-        lines.append(indent+"checkErrorCodeAndThrow \"{}\" errptr".format(fname))
+        lines.append(indent+f"checkErrorCodeAndThrow \"{fname}\" errptr")
 
         ## output marshalling
         if rtype is not None:
-            #lines.append("   let {}' = {}".format(rtype.name, rtype.name))
-            lines.append(rtype.marshall_out())
+            # skip the first line in hope that it is enough. (no need to )
+            # unwrap pointer as the function call already uses <-
+            for l in rtype.marshall_out()[1:]:
+                 lines.append(indent + l)
 
         for ov in outputs:
             for l in ov.marshall_out():
                 lines.append(indent + l)
 
         ## the return line
-        rline = []
+        if rtype is not None:
+            rline = [rtype.return_name()]
+        else:
+            rline = []
+
         for ov in outputs:
-            rline.append("{}'''".format(ov.name))
+            rline.append(ov.return_name())
 
         lines.append(indent + "return (" + ", ".join(rline) + ")")
-
 
         return "\n".join(lines)
 
@@ -562,7 +680,7 @@ class Function:
         in the c call.) """
 
         fname = prefix + camelcasify(self.name)
-        lines = ["foreign import ccall safe \"gmshc.h {}\"".format(fname)]
+        lines = [f"foreign import ccall safe \"gmshc.h {fname}\""]
         lines.append("   {}".format("c"+fname))
 
         # print arguments (c types), always at least errorcode
@@ -570,15 +688,15 @@ class Function:
         args = list(self.args) + [oint("errcode")]
         types = flatten2([a.foreignexp() for a in args])
 
-        lines.append("      :: {}".format(types[0]))
+        lines.append(f"      :: {types[0]}")
         for t in types[1:]:
-            lines.append("      -> {}".format(t))
+            lines.append(f"      -> {t}")
 
         if self.return_type is None:
             lines.append("      -> IO()")
         else:
             t = self.return_type.type_in_return()[0]
-            lines.append("      -> IO({})".format(t))
+            lines.append(f"      -> IO({t})")
 
         return "\n".join(lines)
 
@@ -597,6 +715,9 @@ class Module:
         self.fs.append(Function(rtype, name, args, doc, []))
 
     def add_special(self, name, doc, special, rtype, *args):
+        if "onlycc++" in special:
+            # skip things meant only for c++
+            return
         if rtype is not None:
             rtype = rtype("oval")
         self.fs.append(Function(rtype, name, args, doc, special))
@@ -617,13 +738,11 @@ class Module:
             prefix = kwprefix+camelcasify(self.name)
             fwd_kwargs['prefix'] = prefix
 
-        #fhandle.write("Module {}: \n".format(prefix))
-        # take only one function from each module at first
         for f in self.fs:
             fhandle.write(f.to_string(prefix))
             fhandle.write("\n")
 
-        for m in self.submodules[0:1]:
+        for m in self.submodules:
             m.write_module(fhandle, **fwd_kwargs)
 
 
@@ -664,7 +783,7 @@ class API:
 
         with open("GmshAPI.hs", 'w') as f:
             f.write(haskell_header)
-            for m in self.modules[0:1]:
+            for m in self.modules:
                 m.write_module(f)
 
 
@@ -707,8 +826,82 @@ withArgv ss f = withMany withCString ss f'
    where
       f' x = withArray x f
 
+
+withArrayArrayLen
+   :: (Storable a )
+   => [[a]]
+   -> (CInt -> Ptr CInt -> Ptr (Ptr a) -> IO(b))
+   -> IO (b)
+withArrayArrayLen arr f = do
+   let len = fromIntegral $ length arr
+   let lens = map fromIntegral $ map length arr
+   withMany withArray arr $ \\marr -> do
+      -- marr :: [Ptr a]
+      withArray marr $ \\mmarr -> do
+         --mmarr :: Ptr (Ptr a), toivottavasti
+         withArray lens $ \\larr -> do
+            f len larr mmarr
+
+withArrayArrayIntLen
+   :: [[Int]]
+   -> (CInt -> Ptr CInt -> Ptr (Ptr CInt) -> IO(b))
+   -> IO (b)
+
+withArrayArrayIntLen arr =
+   let arr' = map (map fromIntegral) arr
+   in withArrayArrayLen arr'
+
+withArrayArrayDoubleLen
+   :: [[Double]]
+   -> (CInt -> Ptr CInt -> Ptr (Ptr CDouble) -> IO(b))
+   -> IO (b)
+
+withArrayArrayDoubleLen arr =
+   let arr' = map (map realToFrac) arr
+   in withArrayArrayLen arr'
+
+withArrayIntLen :: [Int] -> (CInt -> Ptr CInt -> IO(b)) -> IO(b)
+withArrayIntLen arr f =
+    let arr' = map fromIntegral arr
+        f' len ptr = f (fromIntegral len) ptr
+    in withArrayLen arr' f'
+
+
+withArrayPairLen
+    :: [(Int, Int)]
+    -> (CInt -> Ptr CInt -> IO(b))
+    -> IO(b)
+
+withArrayPairLen arr f =
+    let arr' = map fromIntegral $ pairsToFlat arr
+    in
+        withArrayLen arr' $ \\narr arr'' -> do
+            f (fromIntegral narr) arr''
+
+withArrayDoubleLen :: [Double] -> (CInt -> Ptr CDouble -> IO(b)) -> IO(b)
+withArrayDoubleLen arr f =
+    let arr' = map realToFrac arr'
+        f' len ptr = f (fromIntegral len) ptr
+    in withArrayLen arr' f'
+
+withArrayStringLen :: [String] -> (CInt -> Ptr CString -> IO(b)) -> IO(b)
+withArrayStringLen strs f = do
+    let len = fromIntegral $ length strs
+    withMany withCString strs $ \\marr -> do
+        -- marr :: [CString]
+        withArray marr $ \\mmarr -> do
+            -- mmarr :: Ptr CString hopefully!
+            f len mmarr
+
 peekInt :: Ptr CInt -> IO(Int)
 peekInt = liftM fromIntegral . peek
+
+peekArrayString :: Ptr CInt -> Ptr (Ptr CString) -> IO([String])
+peekArrayString nptr arrptr = do
+    nstrs <- peekInt nptr
+    arr <- peek arrptr
+    strings <- peekArray nstrs arr
+    sequence $ map peekCString strings
 
 
 flatToPairs :: [a] -> [(a,a)]
@@ -729,40 +922,76 @@ peekArrayPairs nptr arrptr  = do
   flatpairs <- peekArray npairs arr
   return $ flatToPairs $ map fromIntegral flatpairs
 
---foldfun :: ([[(CInt, CInt)]], Ptr (Ptr CInt))
--- -> Int -> IO([[(CInt, CInt)]], Ptr (Ptr CInt))
+peekArrayInt :: Ptr CInt -> Ptr (Ptr CInt) -> IO([Int])
+peekArrayInt nptr arrptr  = do
+  nints <- peekInt nptr
+  arr <- peek arrptr
+  ints <- peekArray nints arr
+  return $ map fromIntegral ints
+
+peekArrayDouble :: Ptr CInt -> Ptr (Ptr CDouble) -> IO([Double])
+peekArrayDouble nptr arrptr  = do
+    nints <- peekInt nptr
+    arr <- peek arrptr
+    ints <- peekArray nints arr
+    return $ map realToFrac ints
+
+
+peekArrayArray
+    :: (Storable a)
+    => ([a] -> [b])
+    -> Ptr CInt
+    -> Ptr (Ptr CInt)
+    -> Ptr (Ptr (Ptr a))
+    -> IO ([[b]])
+-- Peeks a nested array and uses f to map the
+-- result to correct datatype
+peekArrayArray f nnPtr nPtr arrPtrPtr  =
+  do
+    nn <- peekInt nnPtr
+    narr <- peek nPtr
+    lens <- peekArray nn narr
+    arrPtr <- peek arrPtrPtr
+    -- okay, so. fold over the list of lengths, lens.
+    -- For each element dereference the pointer
+    -- then peek n elements from the array, then advance the outer pointer
+    -- accumulate the list of peeked lists, and the advanced pointer
+    (lists,_) <- foldl foldfun (return ([], arrPtr)) $ map fromIntegral lens
+    return lists
+
+  where
+    -- foldfun takes the previous IO action and runs it,
+    -- then proceeds to peek and advance ptrs and maps the
+    -- result using f
+    foldfun action n = do
+        (acc, ptr) <- action
+        aptr <- peek ptr
+        lst <- peekArray n aptr
+        let out = f lst
+        --let pairss = flatToPairs $ map fromIntegral lst
+        let newptr = advancePtr ptr 1
+        return ((out:acc), newptr)
+
+peekArrayArrayInt
+  :: Ptr CInt
+  -> Ptr (Ptr CInt)
+  -> Ptr (Ptr (Ptr CInt))
+  -> IO([[Int]])
+peekArrayArrayInt = peekArrayArray $ map fromIntegral
+
+peekArrayArrayDouble
+  :: Ptr CInt
+  -> Ptr (Ptr CInt)
+  -> Ptr (Ptr (Ptr CDouble))
+  -> IO([[Double]])
+peekArrayArrayDouble = peekArrayArray $ map realToFrac
 
 peekArrayArrayPairs
   :: Ptr CInt
   -> Ptr (Ptr CInt)
   -> Ptr (Ptr (Ptr CInt))
   -> IO([[(Int, Int)]])
-peekArrayArrayPairs lengthLengthsPtr lengthsPtr arrPtr  =
-  do
-    nlengths <- peekInt lengthLengthsPtr
-    lengthsArr <- peek lengthsPtr
-    lengthsList <- peekArray nlengths lengthsArr
-    arrptr <- peek arrPtr
-    -- okay, so. fold over lengthsList.
-    -- For each element dereference the pointer
-    -- then peek n elements from the array, then advance the outer pointer
-    -- accumulate the list of peeked lists, and the advanced pointer
-    (pairs,_) <- foldl foldfun (return ([], arrptr)) $ map fromIntegral lengthsList
-    return pairs
-
-  where
-    -- foldfun takes the previous IO action and runs it,
-    -- then proceeds to peek and advance ptrs and wraps the results
-    -- in a tuple
-    foldfun action n = do
-        (acc, ptr) <- action
-        aptr <- peek ptr
-        lst <- peekArray n aptr
-        let pairss = flatToPairs $ map fromIntegral lst
-        let newptr = advancePtr ptr 1
-        return ((pairss:acc), newptr)
-
-
+peekArrayArrayPairs  = peekArrayArray $ flatToPairs . map fromIntegral
 
 checkErrorCodeAndThrow :: String -> Ptr CInt -> IO()
 checkErrorCodeAndThrow funname errptr = do
