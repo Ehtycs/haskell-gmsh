@@ -767,24 +767,31 @@ withArgv ss f = withMany withCString ss f'
       f' x = withArray x f
 
 
--- THIS DOESN'T WORK, NEEDS alloca TO ALLOCATE THE Ptr CInt,
-
 withArrayArrayLen
-    :: (Storable a)
-    => [[a]]
-    -> (CInt -> Ptr CInt -> Ptr (Ptr a) -> IO(b))
-    -> IO(c)
-withArrayArrayLen = undefined
+   :: (Storable a )
+   => [[a]]
+   -> (CInt -> Ptr CInt -> Ptr (Ptr a) -> IO(b))
+   -> IO (b)
+withArrayArrayLen arr f = do
+   let len = fromIntegral $ length arr
+   let lens = map fromIntegral $ map length arr
+   withMany withArray arr $ \marr -> do
+      -- marr :: [Ptr a]
+      withArray marr $ \mmarr -> do
+         --mmarr :: Ptr (Ptr a), toivottavasti
+         withArray lens $ \larr -> do
+            f len larr mmarr
 
 withArrayArrayIntLen
-    :: [[Int]]
-    -> (CInt -> Ptr CInt -> Ptr (Ptr a) -> IO(b))
-    -> IO(c)
-withArrayArrayIntLen arr f =
-    let arr' = map (map fromIntegral) arr
-        f' len' len ptr = f (fromIntegral len') (fromIntegral len) ptr
-    in withArrayArrayLen arr' f'
+   :: [[Int]]
+   -> (CInt -> Ptr CInt -> Ptr (Ptr CInt) -> IO(b))
+   -> IO (b)
 
+withArrayArrayIntLen arr =
+   let arr' = map (map fromIntegral) arr
+   in withArrayArrayLen arr'
+
+    
 withArrayIntLen :: [Int] -> (CInt -> Ptr CInt -> IO(b)) -> IO(b)
 withArrayIntLen arr f =
     let arr' = map fromIntegral arr

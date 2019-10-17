@@ -267,3 +267,57 @@ foreign import ccall unsafe "gmshc.h gmshModelOccAddDisk"
   :: CDouble -> CDouble -> CDouble
   -> CDouble -> CDouble
   -> CInt -> Ptr CInt -> IO()
+
+  {-GMSH_API void gmshModelMeshAddElements(const int dim,
+                                         const int tag,
+                                         int * elementTypes, size_t elementTypes_n,
+                                         const size_t ** elementTags, const size_t * elementTags_n, size_t elementTags_nn,
+                                         const size_t ** nodeTags, const size_t * nodeTags_n, size_t nodeTags_nn,
+                                         int * ierr);
+-}
+
+withArrayArrayLen
+   :: (Storable a )
+   => [[a]]
+   -> (CInt -> Ptr CInt -> Ptr (Ptr a) -> IO(b))
+   -> IO (b)
+withArrayArrayLen arr f = do
+   let len = fromIntegral $ length arr
+   let lens = map fromIntegral $ map length arr
+   withMany withArray arr $ \marr -> do
+      -- marr :: [Ptr a]
+      withArray marr $ \mmarr -> do
+         --mmarr :: Ptr (Ptr a), toivottavasti
+         withArray lens $ \larr -> do
+            f len larr mmarr
+
+withArrayArrayIntLen
+   :: [[Int]]
+   -> (CInt -> Ptr CInt -> Ptr (Ptr CInt) -> IO(b))
+   -> IO (b)
+
+withArrayArrayIntLen arr =
+   let arr' = map (map fromIntegral) arr
+   in withArrayArrayLen arr'
+
+gmshModelMeshAddElements
+   :: Int
+   -> Int
+   -> [Int]
+   -> [[Int]]
+   -> [[Int]]
+   -> IO()
+
+gmshModelMeshAddElements dim tag elementTypes elementTags nodeTags = undefined
+
+
+
+foreign import ccall unsafe "gmshc.h gmshModelMeshAddElements"
+   cgmshModelMeshAddElements
+   :: CInt
+   -> CInt
+   -> Ptr CInt -> CInt
+   -> Ptr (Ptr CInt) -> Ptr CInt -> CInt
+   -> Ptr (Ptr CInt) -> Ptr CInt -> CInt
+   -> Ptr CInt
+   -> IO()
