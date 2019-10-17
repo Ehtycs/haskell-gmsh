@@ -21,6 +21,12 @@ class arg:
     output = False
     indent = 0
     def __init__(self, name=None, value=None,  python_value=None, julia_value=None):
+
+        # "data" is a reserved keyword in haskell so mangle any
+        # instances of it
+        if name == "data":
+            name = "daatta"
+
         self.name = name
         self.value = value
 
@@ -140,11 +146,15 @@ class istring(arg):
         return ["withCString {} $ \\{}' -> do".format(self.name, self.name)]
 
 class ivoidstar(arg):
+    """
+    This can't be used but needs to be defined in order to run the api_gen
+    """
     htype = "?"
     ctype = "?"
 
     def marshall_in(self):
-        return ["?"]
+        assert False , "Datatype void* is not applicable in Haskell"
+        return None
 
 class ivectorint(input_array):
     htype = "[Int]"
@@ -175,7 +185,8 @@ class ivectorstring(input_array):
     ctype = "CString"
 
     def marshall_in(self):
-        return ["?"]
+        n = self.name
+        return [f"withArrayStringLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectorpair(input_array):
     htype = "[(Int, Int)]"
@@ -205,7 +216,7 @@ class ivectorvectordouble(input_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return [f"withArrayArrayIntLen $ \\{n}' {n}_n' {n}_nn' -> do"]
+        return [f"withArrayArrayDoubleLen {n} $ \\{n}_nn' {n}_n' {n}' -> do"]
 
 
 # output types
@@ -396,9 +407,17 @@ class ovectorvectordouble(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n),
-                "      alloca $ \\{}_nn' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do",
+                f"      alloca $ \\{n}_nn' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayArrayDouble {n}_nn' {n}_n' {n}'"]
+
+    def return_name(self):
+        n = self.name
+        return f"{n}''"
 
 class ovectorvectorpair(output_arrayarray):
     output = True
@@ -409,9 +428,16 @@ class ovectorvectorpair(output_arrayarray):
 
     def marshall_in(self):
         n = self.name
-        return ["alloca $ \\{}' -> do".format(n),
-                "   alloca $ \\{}_n' -> do".format(n),
-                "      alloca $ \\{}_nn' -> do".format(n)]
+        return [f"alloca $ \\{n}' -> do",
+                f"   alloca $ \\{n}_n' -> do",
+                f"      alloca $ \\{n}_nn' -> do"]
+
+    def marshall_out(self):
+        n = self.name
+        return [f"{n}'' <- peekArrayArrayPairs {n}_nn' {n}_n' {n}'"]
+
+    def return_name(self):
+        return "{}''".format(self.name)
 
 class argcargv(arg):
     output = False
@@ -656,6 +682,9 @@ class Module:
         self.fs.append(Function(rtype, name, args, doc, []))
 
     def add_special(self, name, doc, special, rtype, *args):
+        if "onlycc++" in special:
+            # skip things meant only for c++
+            return
         if rtype is not None:
             rtype = rtype("oval")
         self.fs.append(Function(rtype, name, args, doc, special))
@@ -682,7 +711,7 @@ class Module:
             fhandle.write(f.to_string(prefix))
             fhandle.write("\n")
 
-        for m in self.submodules[0:2]:
+        for m in self.submodules:
             m.write_module(fhandle, **fwd_kwargs)
 
 
@@ -775,11 +804,11 @@ withArrayArrayLen
 withArrayArrayLen arr f = do
    let len = fromIntegral $ length arr
    let lens = map fromIntegral $ map length arr
-   withMany withArray arr $ \marr -> do
+   withMany withArray arr $ \\marr -> do
       -- marr :: [Ptr a]
-      withArray marr $ \mmarr -> do
+      withArray marr $ \\mmarr -> do
          --mmarr :: Ptr (Ptr a), toivottavasti
-         withArray lens $ \larr -> do
+         withArray lens $ \\larr -> do
             f len larr mmarr
 
 withArrayArrayIntLen
@@ -791,7 +820,15 @@ withArrayArrayIntLen arr =
    let arr' = map (map fromIntegral) arr
    in withArrayArrayLen arr'
 
-    
+withArrayArrayDoubleLen
+   :: [[Double]]
+   -> (CInt -> Ptr CInt -> Ptr (Ptr CDouble) -> IO(b))
+   -> IO (b)
+
+withArrayArrayDoubleLen arr =
+   let arr' = map (map realToFrac) arr
+   in withArrayArrayLen arr'
+
 withArrayIntLen :: [Int] -> (CInt -> Ptr CInt -> IO(b)) -> IO(b)
 withArrayIntLen arr f =
     let arr' = map fromIntegral arr
@@ -810,6 +847,14 @@ withArrayDoubleLen arr f =
         f' len ptr = f (fromIntegral len) ptr
     in withArrayLen arr' f'
 
+withArrayStringLen :: [String] -> (CInt -> Ptr CString -> IO(b)) -> IO(b)
+withArrayStringLen strs f = do
+    let len = fromIntegral $ length strs
+    withMany withCString strs $ \\marr -> do
+        -- marr :: [CString]
+        withArray marr $ \\mmarr -> do
+            -- mmarr :: Ptr CString hopefully!
+            f len mmarr
 
 peekInt :: Ptr CInt -> IO(Int)
 peekInt = liftM fromIntegral . peek
@@ -863,6 +908,13 @@ peekArrayArrayInt
   -> Ptr (Ptr (Ptr CInt))
   -> IO([[Int]])
 peekArrayArrayInt = undefined
+
+peekArrayArrayDouble
+  :: Ptr CInt
+  -> Ptr (Ptr CInt)
+  -> Ptr (Ptr (Ptr CDouble))
+  -> IO([[Double]])
+peekArrayArrayDouble = undefined
 
 peekArrayArrayPairs
   :: Ptr CInt
