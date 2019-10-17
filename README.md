@@ -2,6 +2,10 @@
 
 This module implements Haskell bindings to Gmsh C API. It's a work in progress.
 
+### Update 17.10.2019
+The generator and marshallers are mostly in place. The generator is working and the generated code with marshallers also compiles. Next things need to be tested. Some form of automated testing, at least
+for the basic functionality would be nice.
+
 ### Update 22.9.2019
 The best-ish approach seems to be to manually write marshalling functions which can be used together with the modified GMSH API generator. Since all types are built-in types, it is hopefully simpler than using FFI generating tools and gives more control on how to handle e.g. errors and default arguments.
 
