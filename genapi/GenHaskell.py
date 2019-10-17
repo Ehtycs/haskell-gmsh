@@ -835,11 +835,17 @@ withArrayIntLen arr f =
         f' len ptr = f (fromIntegral len) ptr
     in withArrayLen arr' f'
 
+
 withArrayPairLen
     :: [(Int, Int)]
     -> (CInt -> Ptr CInt -> IO(b))
-    -> IO(c)
-withArrayPairLen = undefined
+    -> IO(b)
+
+withArrayPairLen arr f =
+    let arr' = map fromIntegral $ pairsToFlat arr
+    in
+        withArrayLen arr' $ \\narr arr'' -> do
+            f (fromIntegral narr) arr''
 
 withArrayDoubleLen :: [Double] -> (CInt -> Ptr CDouble -> IO(b)) -> IO(b)
 withArrayDoubleLen arr f =
@@ -899,52 +905,63 @@ peekArrayDouble nptr arrptr  = do
     ints <- peekArray nints arr
     return $ map realToFrac ints
 
---foldfun :: ([[(CInt, CInt)]], Ptr (Ptr CInt))
--- -> Int -> IO([[(CInt, CInt)]], Ptr (Ptr CInt))
+
+peekArrayArray
+    :: (Storable a)
+    => ([a] -> [b])
+    -> Ptr CInt
+    -> Ptr (Ptr CInt)
+    -> Ptr (Ptr (Ptr a))
+    -> IO ([[b]])
+-- Peeks a nested array and uses f to map the
+-- result to correct datatype
+peekArrayArray f nnPtr nPtr arrPtrPtr  =
+  do
+    nn <- peekInt nnPtr
+    narr <- peek nPtr
+    lens <- peekArray nn narr
+    arrPtr <- peek arrPtrPtr
+    -- okay, so. fold over the list of lengths, lens.
+    -- For each element dereference the pointer
+    -- then peek n elements from the array, then advance the outer pointer
+    -- accumulate the list of peeked lists, and the advanced pointer
+    (lists,_) <- foldl foldfun (return ([], arrPtr)) $ map fromIntegral lens
+    return lists
+
+  where
+    -- foldfun takes the previous IO action and runs it,
+    -- then proceeds to peek and advance ptrs and maps the
+    -- result using f
+    foldfun action n = do
+        (acc, ptr) <- action
+        aptr <- peek ptr
+        lst <- peekArray n aptr
+        let out = f lst
+        --let pairss = flatToPairs $ map fromIntegral lst
+        let newptr = advancePtr ptr 1
+        return ((out:acc), newptr)
 
 peekArrayArrayInt
   :: Ptr CInt
   -> Ptr (Ptr CInt)
   -> Ptr (Ptr (Ptr CInt))
   -> IO([[Int]])
-peekArrayArrayInt = undefined
+peekArrayArrayInt = peekArrayArray $ map fromIntegral
 
 peekArrayArrayDouble
   :: Ptr CInt
   -> Ptr (Ptr CInt)
   -> Ptr (Ptr (Ptr CDouble))
   -> IO([[Double]])
-peekArrayArrayDouble = undefined
+peekArrayArrayDouble = peekArrayArray $ map realToFrac
 
 peekArrayArrayPairs
   :: Ptr CInt
   -> Ptr (Ptr CInt)
   -> Ptr (Ptr (Ptr CInt))
   -> IO([[(Int, Int)]])
-peekArrayArrayPairs lengthLengthsPtr lengthsPtr arrPtr  =
-  do
-    nlengths <- peekInt lengthLengthsPtr
-    lengthsArr <- peek lengthsPtr
-    lengthsList <- peekArray nlengths lengthsArr
-    arrptr <- peek arrPtr
-    -- okay, so. fold over lengthsList.
-    -- For each element dereference the pointer
-    -- then peek n elements from the array, then advance the outer pointer
-    -- accumulate the list of peeked lists, and the advanced pointer
-    (pairs,_) <- foldl foldfun (return ([], arrptr)) $ map fromIntegral lengthsList
-    return pairs
+peekArrayArrayPairs  = peekArrayArray $ flatToPairs . map fromIntegral
 
-  where
-    -- foldfun takes the previous IO action and runs it,
-    -- then proceeds to peek and advance ptrs and wraps the results
-    -- in a tuple
-    foldfun action n = do
-        (acc, ptr) <- action
-        aptr <- peek ptr
-        lst <- peekArray n aptr
-        let pairss = flatToPairs $ map fromIntegral lst
-        let newptr = advancePtr ptr 1
-        return ((pairss:acc), newptr)
 
 
 
