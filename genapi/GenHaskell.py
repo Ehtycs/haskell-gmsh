@@ -803,6 +803,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License ("LICENSE" file) for more details.
 -}
 
+{-
+This file is generated through genapi/api_gen.py. DO NOT EDIT DIRECTLY!
+-}
+
 module GmshAPI where
 
 import Control.Monad (liftM)

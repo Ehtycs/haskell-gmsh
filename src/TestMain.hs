@@ -53,15 +53,16 @@ main = do
    buildCubeSphere
    gmshModelMeshGenerate 3
 
-   foreach (gmshModelGetEntities 3) $ \(_,volume) -> do
+   asd <- foreach (gmshModelGetEntities 3) $ \(_,volume) -> do
       putStrLn $ "volume " ++ show volume
       foreach (gmshModelMeshGetElementTypes 3 volume) $ \etype -> do
          putStrLn $ "element type " ++ show etype
          (intp, intw) <- gmshModelMeshGetIntegrationPoints etype "Gauss1"
          putStrLn $ "intp " ++ show intp
          (ncomp, basis) <- gmshModelMeshGetBasisFunctions etype intp "Lagrange"
-         print "moi"
-
+         -- maybe return a tuple of the data or make some datatype?
+         return ncomp
+   print asd
 
    gmshFltkRun
    gmshFinalize
