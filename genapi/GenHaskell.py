@@ -880,7 +880,7 @@ withArrayPairLen arr f =
 
 withArrayDoubleLen :: [Double] -> (CInt -> Ptr CDouble -> IO(b)) -> IO(b)
 withArrayDoubleLen arr f =
-    let arr' = map realToFrac arr'
+    let arr' = map realToFrac arr
         f' len ptr = f (fromIntegral len) ptr
     in withArrayLen arr' f'
 
