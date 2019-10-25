@@ -16,23 +16,54 @@ module Main where
 
 import Control.Concurrent (runInBoundThread)
 
+import Control.Monad (forM)
+
 import GmshAPI
+
+dtCube = (3,2)
+dtSphere = (3,1)
+dtNorth = (2,3)
+dtSouth = (2,5)
+
+addPhys etag (dim, ptag) name = do
+   gmshModelAddPhysicalGroup dim [etag] ptag
+   gmshModelSetPhysicalName dim ptag name
+
+buildCubeSphere :: IO()
+buildCubeSphere = do
+   stag <- gmshModelOccAddSphere 0 0 0 0.3 (-1) ((-pi)/2) (pi/2) (2*pi)
+   ctag <- gmshModelOccAddBox (-0.5) (-0.5) (-0.5) 1 1 1 (-1)
+   (dts, _) <- gmshModelOccFragment [(3,ctag)] [(3,stag)] (-1) True False
+   let [(_,tsphere), (_,tcube)] = dts
+   gmshModelOccSynchronize
+   addPhys tsphere dtSphere "Sphere"
+   addPhys tcube dtCube "Cube"
+   addPhys 3 dtSouth "South"
+   addPhys 5 dtNorth "North"
+   return()
+
+foreach :: IO [a] -> (a -> IO b) -> IO [b]
+foreach action fun = do
+   result <- action
+   mapM fun result
 
 main :: IO ()
 main = do
-   putStrLn "Moi"
---  gmshInitialize [] False
---  gmshModelOccAddPoint 0.0 0.0 0.0 1.0 1
---  gmshModelOccAddPoint 1.0 1.0 1.0 1.0 2
---  gmshModelOccAddDisk 0.0 0.0 0.0 1.0 1.0 1
---  gmshModelOccAddDisk 0.5 0.0 0.0 1.0 1.0 2
---  gmshModelOccSynchronize
---  (outDimTags, outDimTagsMap) <- gmshModelOccFuse [(2,1)] [(2,2)] (-1) (-1) (-1)
---  print outDimTags
---  print outDimTagsMap
---  gmshModelOccSynchronize
---  dimtags <- gmshModelGetEntities 0
+   gmshInitialize [] False
+   buildCubeSphere
+   gmshModelMeshGenerate 3
 
---  gmshFltkRun
-  --gmshFinalize
+   bfs <- foreach (gmshModelGetEntities 3) $ \(_,volume) -> do
+      putStrLn $ "volume " ++ show volume
+      foreach (gmshModelMeshGetElementTypes 3 volume) $ \etype -> do
+         putStrLn $ "element type " ++ show etype
+         (intp, intw) <- gmshModelMeshGetIntegrationPoints etype "Gauss1"
+         putStrLn $ "intp " ++ show intp
+         (ncomp, basis) <- gmshModelMeshGetBasisFunctions etype intp "Lagrange"
+         -- maybe return a tuple of the data or make some datatype?
+         return basis
+   print bfs
+
+   gmshFltkRun
+   gmshFinalize
    return ()
