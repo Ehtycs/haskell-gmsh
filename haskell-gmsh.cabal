@@ -19,3 +19,12 @@ library
   build-depends:       base >= 4.7 && < 5
   extra-libraries:     gmsh
   exposed-modules:     GmshAPI
+
+test-suite test-cube-sphere
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             CubeSphere.hs
+  build-depends:       base
+                     , haskell-gmsh
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010

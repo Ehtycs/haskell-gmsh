@@ -16,6 +16,24 @@
 #
 
 
+def haskellify_default_value(value, pyvalue):
+    """ Take the C-default value and pyvalue and convert them to
+    a haskell value. Haskell is a bit silly with negative numbers,
+    they need to be wrapped in parentheses.
+    Also . is reserved for function composition, so it must be 1.0 not 1."""
+    if(pyvalue is None):
+        if(value is None):
+            return None
+        elif(value == ""):
+            return "\"\""
+        elif(value[-1] == "."):
+            return f"{value}0"
+        else:
+            return value
+    else:
+        return pyvalue
+
+
 
 class arg:
     """ Basic datatype of an argument. Every datatype inherits this constructor
@@ -36,7 +54,17 @@ class arg:
             name = "daatta"
 
         self.name = name
-        self.value = value
+        # python value is easier to translate to Haskell,
+        # use it if available, otherwise use the c default value
+        self.value = haskellify_default_value(value, python_value)
+
+
+    def input_name(self):
+        """ Optional arguments get a trailing "Maybe" """
+        if(self.value is None):
+            return self.name
+        else:
+            return self.name+"Maybe"
 
     def foreignexp(self):
         """ This "renders" the argument to the "foreign import ccall" line """
@@ -44,11 +72,31 @@ class arg:
 
     def type_signature(self):
         """ This "renders" the argument to the type signature line """
-        return [self.htype]
+        if self.value == None:
+            return [self.htype]
+        else:
+            # If argument has a default value, it's optional. Hence
+            # wrap it in a Maybe
+            return [f"Maybe {self.htype}"]
 
     def ccall_inputs(self):
         """ This "renders" the argument to the c call line """
         return f"{self.name}'"
+
+    def marshall_in(self):
+        """ This is the way it is because of the default arguments given to
+        some of the functions. They are represented by a "Maybe" type.
+        For those, we need to prepend an unwrapping operation. _marshall_in
+        method is the one the subclasses override IF THEY NEED this behaviour.
+        Otherwise they can just override this marshall_in method. """
+        n = self.name
+        dv = self.value
+        lines = []
+        if(dv is not None):
+            lines.append(f"let {n} = fromMaybe ({dv}) {n}Maybe")
+        for ln in self._marshall_in():
+            lines.append(ln)
+        return lines
 
 class oarg(arg):
     """ Basic datatype of an output argument (basically c pointer of some sort)
@@ -59,6 +107,13 @@ class oarg(arg):
     before returning them from the API functions."""
 
     output = True
+
+    def __init__(self, name, value=None, *args):
+        # I'm assuming that output arguments don't have a default value
+        # because it's not reasonable.
+        assert value == None, "Output argument shouldn't have default value"
+        super().__init__(name, value, *args)
+
 
     def foreignexp(self):
         return [f"Ptr {self.ctype}"]
@@ -78,7 +133,6 @@ class input_array(arg):
     in the C API calls .
     """
     indent = 1
-
 
     def foreignexp(self):
         out = [f"Ptr {self.ctype}", "CInt"]
@@ -141,7 +195,7 @@ class ibool(arg):
     htype = "Bool"
     ctype = "CBool"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"let {n}' = fromBool {n}"]
 
@@ -149,7 +203,7 @@ class iint(arg):
     htype = "Int"
     ctype = "CInt"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"let {n}' = fromIntegral {n}"]
 
@@ -157,7 +211,7 @@ class isize(arg):
     htype = "Int"
     ctype = "CInt"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"let {n}' = fromIntegral {n}"]
 
@@ -165,7 +219,7 @@ class idouble(arg):
     htype = "Double"
     ctype = "CDouble"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"let {n}' = realToFrac {n}"]
 
@@ -174,7 +228,7 @@ class istring(arg):
     ctype = "CString"
     indent = 1
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"withCString {n} $ \\{n}' -> do"]
 
@@ -193,7 +247,7 @@ class ivectorint(input_array):
     htype = "[Int]"
     ctype = "CInt"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"withArrayIntLen {n} $ \\{n}_n' {n}' -> do"]
 
@@ -201,7 +255,7 @@ class ivectorsize(input_array):
     htype = "[Int]"
     ctype = "CInt"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"withArrayIntLen {n} $ \\{n}_n' {n}' -> do"]
 
@@ -209,7 +263,7 @@ class ivectordouble(input_array):
     htype = "[Double]"
     ctype = "CDouble"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"withArrayDoubleLen {n} $ \\{n}_n' {n}' -> do"]
 
@@ -217,7 +271,7 @@ class ivectorstring(input_array):
     htype = "[String]"
     ctype = "CString"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"withArrayStringLen {n} $ \\{n}_n' {n}' -> do"]
 
@@ -225,7 +279,7 @@ class ivectorpair(input_array):
     htype = "[(Int, Int)]"
     ctype = "CInt"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"withArrayPairLen {n} $ \\{n}_n' {n}' -> do"]
 
@@ -239,7 +293,7 @@ class ivectorvectorsize(input_arrayarray):
     htype = "[[Int]]"
     ctype = "CInt"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"withArrayArrayIntLen {n} $ \\{n}_nn' {n}_n' {n}' -> do"]
 
@@ -247,7 +301,7 @@ class ivectorvectordouble(input_arrayarray):
     htype = "[[Double]]"
     ctype = "CDouble"
 
-    def marshall_in(self):
+    def _marshall_in(self):
         n = self.name
         return [f"withArrayArrayDoubleLen {n} $ \\{n}_nn' {n}_n' {n}' -> do"]
 
@@ -481,6 +535,7 @@ class argcargv(arg):
         self.name = "argv"
         self.htype = None
         self.ctype = None
+        self.value = None
 
     def marshall_in(self):
         n = self.name
@@ -595,7 +650,7 @@ class Function:
         ## Function declaration line
         decline = [fname]
         for a in inputs:
-            decline.append(a.name)
+            decline.append(a.input_name())
         decline.append("= do")
         lines = [" ".join(decline)]
 
@@ -791,6 +846,7 @@ class API:
             f.write(haskell_header)
             for m in self.modules:
                 m.write_module(f)
+            print("Homma hoitui!")
 
 
 haskell_header = """
