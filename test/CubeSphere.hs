@@ -14,26 +14,33 @@ GNU General Public License ("LICENSE" file) for more details.
 -}
 module Main where
 
-import Control.Concurrent (runInBoundThread)
-
-import Control.Monad (forM)
-
 import GmshAPI
 
+type DimTag = (Int,Int)
+
+dtCube :: DimTag
 dtCube = (3,2)
+dtSphere :: DimTag
 dtSphere = (3,1)
+dtNorth :: DimTag
 dtNorth = (2,3)
+dtSouth :: DimTag
 dtSouth = (2,5)
 
+-- Rename Nothing to nil to shorten the piles of default argument
+nil :: Maybe a
+nil = Nothing
+
+addPhys :: Int -> DimTag -> String -> IO()
 addPhys etag (dim, ptag) name = do
-   gmshModelAddPhysicalGroup dim [etag] ptag
+   _ <- gmshModelAddPhysicalGroup dim [etag] $ Just ptag
    gmshModelSetPhysicalName dim ptag name
 
 buildCubeSphere :: IO()
 buildCubeSphere = do
-   stag <- gmshModelOccAddSphere 0 0 0 0.3 (-1) ((-pi)/2) (pi/2) (2*pi)
-   ctag <- gmshModelOccAddBox (-0.5) (-0.5) (-0.5) 1 1 1 (-1)
-   (dts, _) <- gmshModelOccFragment [(3,ctag)] [(3,stag)] (-1) True False
+   stag <- gmshModelOccAddSphere 0 0 0 0.3 nil nil nil nil -- ((-pi)/2) (pi/2) (2*pi)
+   ctag <- gmshModelOccAddBox (-0.5) (-0.5) (-0.5) 1 1 1 nil
+   (dts, _) <- gmshModelOccFragment [(3,ctag)] [(3,stag)] nil nil nil
    let [(_,tsphere), (_,tcube)] = dts
    gmshModelOccSynchronize
    addPhys tsphere dtSphere "Sphere"
@@ -47,23 +54,29 @@ foreach action fun = do
    result <- action
    mapM fun result
 
+-- what the result should be
+resultBf :: [[[Double]]]
+resultBf = [[[0.25,0.25,0.25,0.25]],[[0.25,0.25,0.25,0.25]]]
+
 main :: IO ()
 main = do
-   gmshInitialize [] False
+   gmshInitialize [] nil
    buildCubeSphere
-   gmshModelMeshGenerate 3
+   gmshModelMeshGenerate $ Just 3
 
-   bfs <- foreach (gmshModelGetEntities 3) $ \(_,volume) -> do
-      putStrLn $ "volume " ++ show volume
-      foreach (gmshModelMeshGetElementTypes 3 volume) $ \etype -> do
-         putStrLn $ "element type " ++ show etype
-         (intp, intw) <- gmshModelMeshGetIntegrationPoints etype "Gauss1"
-         putStrLn $ "intp " ++ show intp
-         (ncomp, basis) <- gmshModelMeshGetBasisFunctions etype intp "Lagrange"
+   bfs <- foreach (gmshModelGetEntities $ Just 3) $ \(_,volume) -> do
+      foreach (gmshModelMeshGetElementTypes (Just 3) (Just volume)) $ \etype -> do
+         (intp, _) <- gmshModelMeshGetIntegrationPoints etype "Gauss1"
+         (_, basis) <- gmshModelMeshGetBasisFunctions etype intp "Lagrange"
          -- maybe return a tuple of the data or make some datatype?
          return basis
-   print bfs
 
-   gmshFltkRun
+   putStrLn ""
+   if resultBf == bfs then do
+      putStrLn "CubeSphere test: Correct result, didn't explode"
+   else
+      error "CubeSphere test: Wrong result!"
+
+   --gmshFltkRun
    gmshFinalize
    return ()

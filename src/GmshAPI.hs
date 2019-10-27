@@ -213,10 +213,11 @@ checkErrorCodeAndThrow funname errptr = do
       then return ()
       else error $ funname ++ " returned nonzero error code: " ++ show errcode
 
-gmshInitialize :: [String] -> Bool -> IO()
-gmshInitialize argv readConfigFiles = do
+gmshInitialize :: [String] -> Maybe Bool -> IO()
+gmshInitialize argv readConfigFilesMaybe = do
    let argc' = fromIntegral $ length argv
    withArgv argv $ \argv' -> do
+      let readConfigFiles = fromMaybe (True) readConfigFilesMaybe
       let readConfigFiles' = fromBool readConfigFiles
       alloca $ \errptr -> do
          cgmshInitialize argc' argv' readConfigFiles' errptr
@@ -345,12 +346,13 @@ foreign import ccall safe "gmshc.h gmshOptionGetString"
       -> Ptr CString
       -> Ptr CInt
       -> IO()
-gmshOptionSetColor :: String -> Int -> Int -> Int -> Int -> IO()
-gmshOptionSetColor name r g b a = do
+gmshOptionSetColor :: String -> Int -> Int -> Int -> Maybe Int -> IO()
+gmshOptionSetColor name r g b aMaybe = do
    withCString name $ \name' -> do
       let r' = fromIntegral r
       let g' = fromIntegral g
       let b' = fromIntegral b
+      let a = fromMaybe (0) aMaybe
       let a' = fromIntegral a
       alloca $ \errptr -> do
          cgmshOptionSetColor name' r' g' b' a' errptr
@@ -442,8 +444,9 @@ foreign import ccall safe "gmshc.h gmshModelSetCurrent"
       :: CString
       -> Ptr CInt
       -> IO()
-gmshModelGetEntities :: Int -> IO([(Int,Int)])
-gmshModelGetEntities dim = do
+gmshModelGetEntities :: Maybe Int -> IO([(Int,Int)])
+gmshModelGetEntities dimMaybe = do
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
    alloca $ \dimTags' -> do
       alloca $ \dimTags_n' -> do
@@ -493,8 +496,9 @@ foreign import ccall safe "gmshc.h gmshModelGetEntityName"
       -> Ptr CString
       -> Ptr CInt
       -> IO()
-gmshModelGetPhysicalGroups :: Int -> IO([(Int,Int)])
-gmshModelGetPhysicalGroups dim = do
+gmshModelGetPhysicalGroups :: Maybe Int -> IO([(Int,Int)])
+gmshModelGetPhysicalGroups dimMaybe = do
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
    alloca $ \dimTags' -> do
       alloca $ \dimTags_n' -> do
@@ -548,10 +552,11 @@ foreign import ccall safe "gmshc.h gmshModelGetPhysicalGroupsForEntity"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelAddPhysicalGroup :: Int -> [Int] -> Int -> IO(Int)
-gmshModelAddPhysicalGroup dim tags tag = do
+gmshModelAddPhysicalGroup :: Int -> [Int] -> Maybe Int -> IO(Int)
+gmshModelAddPhysicalGroup dim tags tagMaybe = do
    let dim' = fromIntegral dim
    withArrayIntLen tags $ \tags_n' tags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelAddPhysicalGroup dim' tags' tags_n' tag' errptr
@@ -600,11 +605,14 @@ foreign import ccall safe "gmshc.h gmshModelGetPhysicalName"
       -> Ptr CString
       -> Ptr CInt
       -> IO()
-gmshModelGetBoundary :: [(Int, Int)] -> Bool -> Bool -> Bool -> IO([(Int,Int)])
-gmshModelGetBoundary dimTags combined oriented recursive = do
+gmshModelGetBoundary :: [(Int, Int)] -> Maybe Bool -> Maybe Bool -> Maybe Bool -> IO([(Int,Int)])
+gmshModelGetBoundary dimTags combinedMaybe orientedMaybe recursiveMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
+      let combined = fromMaybe (True) combinedMaybe
       let combined' = fromBool combined
+      let oriented = fromMaybe (True) orientedMaybe
       let oriented' = fromBool oriented
+      let recursive = fromMaybe (False) recursiveMaybe
       let recursive' = fromBool recursive
       alloca $ \outDimTags' -> do
          alloca $ \outDimTags_n' -> do
@@ -624,14 +632,15 @@ foreign import ccall safe "gmshc.h gmshModelGetBoundary"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelGetEntitiesInBoundingBox :: Double -> Double -> Double -> Double -> Double -> Double -> Int -> IO([(Int,Int)])
-gmshModelGetEntitiesInBoundingBox xmin ymin zmin xmax ymax zmax dim = do
+gmshModelGetEntitiesInBoundingBox :: Double -> Double -> Double -> Double -> Double -> Double -> Maybe Int -> IO([(Int,Int)])
+gmshModelGetEntitiesInBoundingBox xmin ymin zmin xmax ymax zmax dimMaybe = do
    let xmin' = realToFrac xmin
    let ymin' = realToFrac ymin
    let zmin' = realToFrac zmin
    let xmax' = realToFrac xmax
    let ymax' = realToFrac ymax
    let zmax' = realToFrac zmax
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
    alloca $ \tags' -> do
       alloca $ \tags_n' -> do
@@ -702,10 +711,12 @@ foreign import ccall safe "gmshc.h gmshModelGetDimension"
    cgmshModelGetDimension
       :: Ptr CInt
       -> IO(CInt)
-gmshModelAddDiscreteEntity :: Int -> Int -> [Int] -> IO(Int)
-gmshModelAddDiscreteEntity dim tag boundary = do
+gmshModelAddDiscreteEntity :: Int -> Maybe Int -> Maybe [Int] -> IO(Int)
+gmshModelAddDiscreteEntity dim tagMaybe boundaryMaybe = do
    let dim' = fromIntegral dim
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let boundary = fromMaybe ([]) boundaryMaybe
    withArrayIntLen boundary $ \boundary_n' boundary' -> do
       alloca $ \errptr -> do
          oval'' <- cgmshModelAddDiscreteEntity dim' tag' boundary' boundary_n' errptr
@@ -720,9 +731,10 @@ foreign import ccall safe "gmshc.h gmshModelAddDiscreteEntity"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelRemoveEntities :: [(Int, Int)] -> Bool -> IO()
-gmshModelRemoveEntities dimTags recursive = do
+gmshModelRemoveEntities :: [(Int, Int)] -> Maybe Bool -> IO()
+gmshModelRemoveEntities dimTags recursiveMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
+      let recursive = fromMaybe (False) recursiveMaybe
       let recursive' = fromBool recursive
       alloca $ \errptr -> do
          cgmshModelRemoveEntities dimTags' dimTags_n' recursive' errptr
@@ -747,8 +759,9 @@ foreign import ccall safe "gmshc.h gmshModelRemoveEntityName"
       :: CString
       -> Ptr CInt
       -> IO()
-gmshModelRemovePhysicalGroups :: [(Int, Int)] -> IO()
-gmshModelRemovePhysicalGroups dimTags = do
+gmshModelRemovePhysicalGroups :: Maybe [(Int, Int)] -> IO()
+gmshModelRemovePhysicalGroups dimTagsMaybe = do
+   let dimTags = fromMaybe ([]) dimTagsMaybe
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
       alloca $ \errptr -> do
          cgmshModelRemovePhysicalGroups dimTags' dimTags_n' errptr
@@ -952,10 +965,11 @@ foreign import ccall safe "gmshc.h gmshModelGetNormal"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelSetVisibility :: [(Int, Int)] -> Int -> Bool -> IO()
-gmshModelSetVisibility dimTags value recursive = do
+gmshModelSetVisibility :: [(Int, Int)] -> Int -> Maybe Bool -> IO()
+gmshModelSetVisibility dimTags value recursiveMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
       let value' = fromIntegral value
+      let recursive = fromMaybe (False) recursiveMaybe
       let recursive' = fromBool recursive
       alloca $ \errptr -> do
          cgmshModelSetVisibility dimTags' dimTags_n' value' recursive' errptr
@@ -987,13 +1001,15 @@ foreign import ccall safe "gmshc.h gmshModelGetVisibility"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelSetColor :: [(Int, Int)] -> Int -> Int -> Int -> Int -> Bool -> IO()
-gmshModelSetColor dimTags r g b a recursive = do
+gmshModelSetColor :: [(Int, Int)] -> Int -> Int -> Int -> Maybe Int -> Maybe Bool -> IO()
+gmshModelSetColor dimTags r g b aMaybe recursiveMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
       let r' = fromIntegral r
       let g' = fromIntegral g
       let b' = fromIntegral b
+      let a = fromMaybe (0) aMaybe
       let a' = fromIntegral a
+      let recursive = fromMaybe (False) recursiveMaybe
       let recursive' = fromBool recursive
       alloca $ \errptr -> do
          cgmshModelSetColor dimTags' dimTags_n' r' g' b' a' recursive' errptr
@@ -1058,8 +1074,9 @@ foreign import ccall safe "gmshc.h gmshModelSetCoordinates"
       -> CDouble
       -> Ptr CInt
       -> IO()
-gmshModelMeshGenerate :: Int -> IO()
-gmshModelMeshGenerate dim = do
+gmshModelMeshGenerate :: Maybe Int -> IO()
+gmshModelMeshGenerate dimMaybe = do
+   let dim = fromMaybe (3) dimMaybe
    let dim' = fromIntegral dim
    alloca $ \errptr -> do
       cgmshModelMeshGenerate dim' errptr
@@ -1092,9 +1109,11 @@ foreign import ccall safe "gmshc.h gmshModelMeshUnpartition"
    cgmshModelMeshUnpartition
       :: Ptr CInt
       -> IO()
-gmshModelMeshOptimize :: String -> Bool -> IO()
-gmshModelMeshOptimize method force = do
+gmshModelMeshOptimize :: Maybe String -> Maybe Bool -> IO()
+gmshModelMeshOptimize methodMaybe forceMaybe = do
+   let method = fromMaybe ("") methodMaybe
    withCString method $ \method' -> do
+      let force = fromMaybe (False) forceMaybe
       let force' = fromBool force
       alloca $ \errptr -> do
          cgmshModelMeshOptimize method' force' errptr
@@ -1188,11 +1207,15 @@ foreign import ccall safe "gmshc.h gmshModelMeshClear"
    cgmshModelMeshClear
       :: Ptr CInt
       -> IO()
-gmshModelMeshGetNodes :: Int -> Int -> Bool -> Bool -> IO([Int], [Double], [Double])
-gmshModelMeshGetNodes dim tag includeBoundary returnParametricCoord = do
+gmshModelMeshGetNodes :: Maybe Int -> Maybe Int -> Maybe Bool -> Maybe Bool -> IO([Int], [Double], [Double])
+gmshModelMeshGetNodes dimMaybe tagMaybe includeBoundaryMaybe returnParametricCoordMaybe = do
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let includeBoundary = fromMaybe (False) includeBoundaryMaybe
    let includeBoundary' = fromBool includeBoundary
+   let returnParametricCoord = fromMaybe (True) returnParametricCoordMaybe
    let returnParametricCoord' = fromBool returnParametricCoord
    alloca $ \nodeTags' -> do
       alloca $ \nodeTags_n' -> do
@@ -1221,10 +1244,12 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetNodes"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetNodesByElementType :: Int -> Int -> Bool -> IO([Int], [Double], [Double])
-gmshModelMeshGetNodesByElementType elementType tag returnParametricCoord = do
+gmshModelMeshGetNodesByElementType :: Int -> Maybe Int -> Maybe Bool -> IO([Int], [Double], [Double])
+gmshModelMeshGetNodesByElementType elementType tagMaybe returnParametricCoordMaybe = do
    let elementType' = fromIntegral elementType
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let returnParametricCoord = fromMaybe (True) returnParametricCoordMaybe
    let returnParametricCoord' = fromBool returnParametricCoord
    alloca $ \nodeTags' -> do
       alloca $ \nodeTags_n' -> do
@@ -1274,8 +1299,9 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetNode"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshRebuildNodeCache :: Bool -> IO()
-gmshModelMeshRebuildNodeCache onlyIfNecessary = do
+gmshModelMeshRebuildNodeCache :: Maybe Bool -> IO()
+gmshModelMeshRebuildNodeCache onlyIfNecessaryMaybe = do
+   let onlyIfNecessary = fromMaybe (True) onlyIfNecessaryMaybe
    let onlyIfNecessary' = fromBool onlyIfNecessary
    alloca $ \errptr -> do
       cgmshModelMeshRebuildNodeCache onlyIfNecessary' errptr
@@ -1310,12 +1336,13 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetNodesForPhysicalGroup"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshAddNodes :: Int -> Int -> [Int] -> [Double] -> [Double] -> IO()
-gmshModelMeshAddNodes dim tag nodeTags coord parametricCoord = do
+gmshModelMeshAddNodes :: Int -> Int -> [Int] -> [Double] -> Maybe [Double] -> IO()
+gmshModelMeshAddNodes dim tag nodeTags coord parametricCoordMaybe = do
    let dim' = fromIntegral dim
    let tag' = fromIntegral tag
    withArrayIntLen nodeTags $ \nodeTags_n' nodeTags' -> do
       withArrayDoubleLen coord $ \coord_n' coord' -> do
+         let parametricCoord = fromMaybe ([]) parametricCoordMaybe
          withArrayDoubleLen parametricCoord $ \parametricCoord_n' parametricCoord' -> do
             alloca $ \errptr -> do
                cgmshModelMeshAddNodes dim' tag' nodeTags' nodeTags_n' coord' coord_n' parametricCoord' parametricCoord_n' errptr
@@ -1343,9 +1370,11 @@ foreign import ccall safe "gmshc.h gmshModelMeshReclassifyNodes"
    cgmshModelMeshReclassifyNodes
       :: Ptr CInt
       -> IO()
-gmshModelMeshRelocateNodes :: Int -> Int -> IO()
-gmshModelMeshRelocateNodes dim tag = do
+gmshModelMeshRelocateNodes :: Maybe Int -> Maybe Int -> IO()
+gmshModelMeshRelocateNodes dimMaybe tagMaybe = do
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       cgmshModelMeshRelocateNodes dim' tag' errptr
@@ -1357,9 +1386,11 @@ foreign import ccall safe "gmshc.h gmshModelMeshRelocateNodes"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetElements :: Int -> Int -> IO([Int], [[Int]], [[Int]])
-gmshModelMeshGetElements dim tag = do
+gmshModelMeshGetElements :: Maybe Int -> Maybe Int -> IO([Int], [[Int]], [[Int]])
+gmshModelMeshGetElements dimMaybe tagMaybe = do
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \elementTypes' -> do
       alloca $ \elementTypes_n' -> do
@@ -1411,12 +1442,14 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetElement"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetElementByCoordinates :: Double -> Double -> Double -> Int -> Bool -> IO(Int, Int, [Int], Double, Double, Double)
-gmshModelMeshGetElementByCoordinates x y z dim strict = do
+gmshModelMeshGetElementByCoordinates :: Double -> Double -> Double -> Maybe Int -> Maybe Bool -> IO(Int, Int, [Int], Double, Double, Double)
+gmshModelMeshGetElementByCoordinates x y z dimMaybe strictMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
+   let strict = fromMaybe (False) strictMaybe
    let strict' = fromBool strict
    alloca $ \elementTag' -> do
       alloca $ \elementType' -> do
@@ -1456,9 +1489,11 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetElementByCoordinates"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetElementTypes :: Int -> Int -> IO([Int])
-gmshModelMeshGetElementTypes dim tag = do
+gmshModelMeshGetElementTypes :: Maybe Int -> Maybe Int -> IO([Int])
+gmshModelMeshGetElementTypes dimMaybe tagMaybe = do
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \elementTypes' -> do
       alloca $ \elementTypes_n' -> do
@@ -1475,10 +1510,11 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetElementTypes"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetElementType :: String -> Int -> Bool -> IO(Int)
-gmshModelMeshGetElementType familyName order serendip = do
+gmshModelMeshGetElementType :: String -> Int -> Maybe Bool -> IO(Int)
+gmshModelMeshGetElementType familyName order serendipMaybe = do
    withCString familyName $ \familyName' -> do
       let order' = fromIntegral order
+      let serendip = fromMaybe (False) serendipMaybe
       let serendip' = fromBool serendip
       alloca $ \errptr -> do
          oval'' <- cgmshModelMeshGetElementType familyName' order' serendip' errptr
@@ -1525,11 +1561,14 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetElementProperties"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetElementsByType :: Int -> Int -> Int -> Int -> IO([Int], [Int])
-gmshModelMeshGetElementsByType elementType tag task numTasks = do
+gmshModelMeshGetElementsByType :: Int -> Maybe Int -> Maybe Int -> Maybe Int -> IO([Int], [Int])
+gmshModelMeshGetElementsByType elementType tagMaybe taskMaybe numTasksMaybe = do
    let elementType' = fromIntegral elementType
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let task = fromMaybe (0) taskMaybe
    let task' = fromIntegral task
+   let numTasks = fromMaybe (1) numTasksMaybe
    let numTasks' = fromIntegral numTasks
    alloca $ \elementTags' -> do
       alloca $ \elementTags_n' -> do
@@ -1622,12 +1661,15 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetIntegrationPoints"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetJacobians :: Int -> [Double] -> Int -> Int -> Int -> IO([Double], [Double], [Double])
-gmshModelMeshGetJacobians elementType integrationPoints tag task numTasks = do
+gmshModelMeshGetJacobians :: Int -> [Double] -> Maybe Int -> Maybe Int -> Maybe Int -> IO([Double], [Double], [Double])
+gmshModelMeshGetJacobians elementType integrationPoints tagMaybe taskMaybe numTasksMaybe = do
    let elementType' = fromIntegral elementType
    withArrayDoubleLen integrationPoints $ \integrationPoints_n' integrationPoints' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
+      let task = fromMaybe (0) taskMaybe
       let task' = fromIntegral task
+      let numTasks = fromMaybe (1) numTasksMaybe
       let numTasks' = fromIntegral numTasks
       alloca $ \jacobians' -> do
          alloca $ \jacobians_n' -> do
@@ -1684,11 +1726,12 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetBasisFunctions"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetBasisFunctionsForElements :: Int -> [Double] -> String -> Int -> IO(Int, Int, [Double])
-gmshModelMeshGetBasisFunctionsForElements elementType integrationPoints functionSpaceType tag = do
+gmshModelMeshGetBasisFunctionsForElements :: Int -> [Double] -> String -> Maybe Int -> IO(Int, Int, [Double])
+gmshModelMeshGetBasisFunctionsForElements elementType integrationPoints functionSpaceType tagMaybe = do
    let elementType' = fromIntegral elementType
    withArrayDoubleLen integrationPoints $ \integrationPoints_n' integrationPoints' -> do
       withCString functionSpaceType $ \functionSpaceType' -> do
+         let tag = fromMaybe (-1) tagMaybe
          let tag' = fromIntegral tag
          alloca $ \numComponents' -> do
             alloca $ \numFunctionsPerElements' -> do
@@ -1716,11 +1759,13 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetBasisFunctionsForElements"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetKeysForElements :: Int -> String -> Int -> Bool -> IO([(Int,Int)], [Double])
-gmshModelMeshGetKeysForElements elementType functionSpaceType tag returnCoord = do
+gmshModelMeshGetKeysForElements :: Int -> String -> Maybe Int -> Maybe Bool -> IO([(Int,Int)], [Double])
+gmshModelMeshGetKeysForElements elementType functionSpaceType tagMaybe returnCoordMaybe = do
    let elementType' = fromIntegral elementType
    withCString functionSpaceType $ \functionSpaceType' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
+      let returnCoord = fromMaybe (True) returnCoordMaybe
       let returnCoord' = fromBool returnCoord
       alloca $ \keys' -> do
          alloca $ \keys_n' -> do
@@ -1778,13 +1823,15 @@ foreign import ccall safe "gmshc.h gmshModelMeshPrecomputeBasisFunctions"
       :: CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetBarycenters :: Int -> Int -> Bool -> Bool -> Int -> Int -> IO([Double])
-gmshModelMeshGetBarycenters elementType tag fast primary task numTasks = do
+gmshModelMeshGetBarycenters :: Int -> Int -> Bool -> Bool -> Maybe Int -> Maybe Int -> IO([Double])
+gmshModelMeshGetBarycenters elementType tag fast primary taskMaybe numTasksMaybe = do
    let elementType' = fromIntegral elementType
    let tag' = fromIntegral tag
    let fast' = fromBool fast
    let primary' = fromBool primary
+   let task = fromMaybe (0) taskMaybe
    let task' = fromIntegral task
+   let numTasks = fromMaybe (1) numTasksMaybe
    let numTasks' = fromIntegral numTasks
    alloca $ \barycenters' -> do
       alloca $ \barycenters_n' -> do
@@ -1805,12 +1852,16 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetBarycenters"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetElementEdgeNodes :: Int -> Int -> Bool -> Int -> Int -> IO([Int])
-gmshModelMeshGetElementEdgeNodes elementType tag primary task numTasks = do
+gmshModelMeshGetElementEdgeNodes :: Int -> Maybe Int -> Maybe Bool -> Maybe Int -> Maybe Int -> IO([Int])
+gmshModelMeshGetElementEdgeNodes elementType tagMaybe primaryMaybe taskMaybe numTasksMaybe = do
    let elementType' = fromIntegral elementType
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let primary = fromMaybe (False) primaryMaybe
    let primary' = fromBool primary
+   let task = fromMaybe (0) taskMaybe
    let task' = fromIntegral task
+   let numTasks = fromMaybe (1) numTasksMaybe
    let numTasks' = fromIntegral numTasks
    alloca $ \nodeTags' -> do
       alloca $ \nodeTags_n' -> do
@@ -1830,13 +1881,17 @@ foreign import ccall safe "gmshc.h gmshModelMeshGetElementEdgeNodes"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshGetElementFaceNodes :: Int -> Int -> Int -> Bool -> Int -> Int -> IO([Int])
-gmshModelMeshGetElementFaceNodes elementType faceType tag primary task numTasks = do
+gmshModelMeshGetElementFaceNodes :: Int -> Int -> Maybe Int -> Maybe Bool -> Maybe Int -> Maybe Int -> IO([Int])
+gmshModelMeshGetElementFaceNodes elementType faceType tagMaybe primaryMaybe taskMaybe numTasksMaybe = do
    let elementType' = fromIntegral elementType
    let faceType' = fromIntegral faceType
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let primary = fromMaybe (False) primaryMaybe
    let primary' = fromBool primary
+   let task = fromMaybe (0) taskMaybe
    let task' = fromIntegral task
+   let numTasks = fromMaybe (1) numTasksMaybe
    let numTasks' = fromIntegral numTasks
    alloca $ \nodeTags' -> do
       alloca $ \nodeTags_n' -> do
@@ -1896,11 +1951,13 @@ foreign import ccall safe "gmshc.h gmshModelMeshSetSize"
       -> CDouble
       -> Ptr CInt
       -> IO()
-gmshModelMeshSetTransfiniteCurve :: Int -> Int -> String -> Double -> IO()
-gmshModelMeshSetTransfiniteCurve tag numNodes meshType coef = do
+gmshModelMeshSetTransfiniteCurve :: Int -> Int -> Maybe String -> Maybe Double -> IO()
+gmshModelMeshSetTransfiniteCurve tag numNodes meshTypeMaybe coefMaybe = do
    let tag' = fromIntegral tag
    let numNodes' = fromIntegral numNodes
+   let meshType = fromMaybe ("Progression") meshTypeMaybe
    withCString meshType $ \meshType' -> do
+      let coef = fromMaybe (1.0) coefMaybe
       let coef' = realToFrac coef
       alloca $ \errptr -> do
          cgmshModelMeshSetTransfiniteCurve tag' numNodes' meshType' coef' errptr
@@ -1914,10 +1971,12 @@ foreign import ccall safe "gmshc.h gmshModelMeshSetTransfiniteCurve"
       -> CDouble
       -> Ptr CInt
       -> IO()
-gmshModelMeshSetTransfiniteSurface :: Int -> String -> [Int] -> IO()
-gmshModelMeshSetTransfiniteSurface tag arrangement cornerTags = do
+gmshModelMeshSetTransfiniteSurface :: Int -> Maybe String -> Maybe [Int] -> IO()
+gmshModelMeshSetTransfiniteSurface tag arrangementMaybe cornerTagsMaybe = do
    let tag' = fromIntegral tag
+   let arrangement = fromMaybe ("Left") arrangementMaybe
    withCString arrangement $ \arrangement' -> do
+      let cornerTags = fromMaybe ([]) cornerTagsMaybe
       withArrayIntLen cornerTags $ \cornerTags_n' cornerTags' -> do
          alloca $ \errptr -> do
             cgmshModelMeshSetTransfiniteSurface tag' arrangement' cornerTags' cornerTags_n' errptr
@@ -1931,9 +1990,10 @@ foreign import ccall safe "gmshc.h gmshModelMeshSetTransfiniteSurface"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshSetTransfiniteVolume :: Int -> [Int] -> IO()
-gmshModelMeshSetTransfiniteVolume tag cornerTags = do
+gmshModelMeshSetTransfiniteVolume :: Int -> Maybe [Int] -> IO()
+gmshModelMeshSetTransfiniteVolume tag cornerTagsMaybe = do
    let tag' = fromIntegral tag
+   let cornerTags = fromMaybe ([]) cornerTagsMaybe
    withArrayIntLen cornerTags $ \cornerTags_n' cornerTags' -> do
       alloca $ \errptr -> do
          cgmshModelMeshSetTransfiniteVolume tag' cornerTags' cornerTags_n' errptr
@@ -1976,10 +2036,11 @@ foreign import ccall safe "gmshc.h gmshModelMeshSetSmoothing"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshSetReverse :: Int -> Int -> Bool -> IO()
-gmshModelMeshSetReverse dim tag val = do
+gmshModelMeshSetReverse :: Int -> Int -> Maybe Bool -> IO()
+gmshModelMeshSetReverse dim tag valMaybe = do
    let dim' = fromIntegral dim
    let tag' = fromIntegral tag
+   let val = fromMaybe (True) valMaybe
    let val' = fromBool val
    alloca $ \errptr -> do
       cgmshModelMeshSetReverse dim' tag' val' errptr
@@ -2023,9 +2084,10 @@ foreign import ccall safe "gmshc.h gmshModelMeshEmbed"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshRemoveEmbedded :: [(Int, Int)] -> Int -> IO()
-gmshModelMeshRemoveEmbedded dimTags dim = do
+gmshModelMeshRemoveEmbedded :: [(Int, Int)] -> Maybe Int -> IO()
+gmshModelMeshRemoveEmbedded dimTags dimMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
+      let dim = fromMaybe (-1) dimMaybe
       let dim' = fromIntegral dim
       alloca $ \errptr -> do
          cgmshModelMeshRemoveEmbedded dimTags' dimTags_n' dim' errptr
@@ -2139,9 +2201,11 @@ foreign import ccall safe "gmshc.h gmshModelMeshRemoveDuplicateNodes"
    cgmshModelMeshRemoveDuplicateNodes
       :: Ptr CInt
       -> IO()
-gmshModelMeshSplitQuadrangles :: Double -> Int -> IO()
-gmshModelMeshSplitQuadrangles quality tag = do
+gmshModelMeshSplitQuadrangles :: Maybe Double -> Maybe Int -> IO()
+gmshModelMeshSplitQuadrangles qualityMaybe tagMaybe = do
+   let quality = fromMaybe (1.0) qualityMaybe
    let quality' = realToFrac quality
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       cgmshModelMeshSplitQuadrangles quality' tag' errptr
@@ -2153,10 +2217,12 @@ foreign import ccall safe "gmshc.h gmshModelMeshSplitQuadrangles"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshClassifySurfaces :: Double -> Bool -> Bool -> IO()
-gmshModelMeshClassifySurfaces angle boundary forReparametrization = do
+gmshModelMeshClassifySurfaces :: Double -> Maybe Bool -> Maybe Bool -> IO()
+gmshModelMeshClassifySurfaces angle boundaryMaybe forReparametrizationMaybe = do
    let angle' = realToFrac angle
+   let boundary = fromMaybe (True) boundaryMaybe
    let boundary' = fromBool boundary
+   let forReparametrization = fromMaybe (False) forReparametrizationMaybe
    let forReparametrization' = fromBool forReparametrization
    alloca $ \errptr -> do
       cgmshModelMeshClassifySurfaces angle' boundary' forReparametrization' errptr
@@ -2189,10 +2255,13 @@ foreign import ccall safe "gmshc.h gmshModelMeshCreateTopology"
    cgmshModelMeshCreateTopology
       :: Ptr CInt
       -> IO()
-gmshModelMeshComputeHomology :: [Int] -> [Int] -> [Int] -> IO()
-gmshModelMeshComputeHomology domainTags subdomainTags dims = do
+gmshModelMeshComputeHomology :: Maybe [Int] -> Maybe [Int] -> Maybe [Int] -> IO()
+gmshModelMeshComputeHomology domainTagsMaybe subdomainTagsMaybe dimsMaybe = do
+   let domainTags = fromMaybe ([]) domainTagsMaybe
    withArrayIntLen domainTags $ \domainTags_n' domainTags' -> do
+      let subdomainTags = fromMaybe ([]) subdomainTagsMaybe
       withArrayIntLen subdomainTags $ \subdomainTags_n' subdomainTags' -> do
+         let dims = fromMaybe ([]) dimsMaybe
          withArrayIntLen dims $ \dims_n' dims' -> do
             alloca $ \errptr -> do
                cgmshModelMeshComputeHomology domainTags' domainTags_n' subdomainTags' subdomainTags_n' dims' dims_n' errptr
@@ -2208,10 +2277,13 @@ foreign import ccall safe "gmshc.h gmshModelMeshComputeHomology"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshComputeCohomology :: [Int] -> [Int] -> [Int] -> IO()
-gmshModelMeshComputeCohomology domainTags subdomainTags dims = do
+gmshModelMeshComputeCohomology :: Maybe [Int] -> Maybe [Int] -> Maybe [Int] -> IO()
+gmshModelMeshComputeCohomology domainTagsMaybe subdomainTagsMaybe dimsMaybe = do
+   let domainTags = fromMaybe ([]) domainTagsMaybe
    withArrayIntLen domainTags $ \domainTags_n' domainTags' -> do
+      let subdomainTags = fromMaybe ([]) subdomainTagsMaybe
       withArrayIntLen subdomainTags $ \subdomainTags_n' subdomainTags' -> do
+         let dims = fromMaybe ([]) dimsMaybe
          withArrayIntLen dims $ \dims_n' dims' -> do
             alloca $ \errptr -> do
                cgmshModelMeshComputeCohomology domainTags' domainTags_n' subdomainTags' subdomainTags_n' dims' dims_n' errptr
@@ -2227,9 +2299,10 @@ foreign import ccall safe "gmshc.h gmshModelMeshComputeCohomology"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelMeshFieldAdd :: String -> Int -> IO(Int)
-gmshModelMeshFieldAdd fieldType tag = do
+gmshModelMeshFieldAdd :: String -> Maybe Int -> IO(Int)
+gmshModelMeshFieldAdd fieldType tagMaybe = do
    withCString fieldType $ \fieldType' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelMeshFieldAdd fieldType' tag' errptr
@@ -2327,12 +2400,14 @@ foreign import ccall safe "gmshc.h gmshModelMeshFieldSetAsBoundaryLayer"
       :: CInt
       -> Ptr CInt
       -> IO()
-gmshModelGeoAddPoint :: Double -> Double -> Double -> Double -> Int -> IO(Int)
-gmshModelGeoAddPoint x y z meshSize tag = do
+gmshModelGeoAddPoint :: Double -> Double -> Double -> Maybe Double -> Maybe Int -> IO(Int)
+gmshModelGeoAddPoint x y z meshSizeMaybe tagMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
+   let meshSize = fromMaybe (0.0) meshSizeMaybe
    let meshSize' = realToFrac meshSize
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshModelGeoAddPoint x' y' z' meshSize' tag' errptr
@@ -2348,10 +2423,11 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddPoint"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddLine :: Int -> Int -> Int -> IO(Int)
-gmshModelGeoAddLine startTag endTag tag = do
+gmshModelGeoAddLine :: Int -> Int -> Maybe Int -> IO(Int)
+gmshModelGeoAddLine startTag endTag tagMaybe = do
    let startTag' = fromIntegral startTag
    let endTag' = fromIntegral endTag
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshModelGeoAddLine startTag' endTag' tag' errptr
@@ -2365,14 +2441,18 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddLine"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddCircleArc :: Int -> Int -> Int -> Int -> Double -> Double -> Double -> IO(Int)
-gmshModelGeoAddCircleArc startTag centerTag endTag tag nx ny nz = do
+gmshModelGeoAddCircleArc :: Int -> Int -> Int -> Maybe Int -> Maybe Double -> Maybe Double -> Maybe Double -> IO(Int)
+gmshModelGeoAddCircleArc startTag centerTag endTag tagMaybe nxMaybe nyMaybe nzMaybe = do
    let startTag' = fromIntegral startTag
    let centerTag' = fromIntegral centerTag
    let endTag' = fromIntegral endTag
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let nx = fromMaybe (0.0) nxMaybe
    let nx' = realToFrac nx
+   let ny = fromMaybe (0.0) nyMaybe
    let ny' = realToFrac ny
+   let nz = fromMaybe (0.0) nzMaybe
    let nz' = realToFrac nz
    alloca $ \errptr -> do
       oval'' <- cgmshModelGeoAddCircleArc startTag' centerTag' endTag' tag' nx' ny' nz' errptr
@@ -2390,15 +2470,19 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddCircleArc"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddEllipseArc :: Int -> Int -> Int -> Int -> Int -> Double -> Double -> Double -> IO(Int)
-gmshModelGeoAddEllipseArc startTag centerTag majorTag endTag tag nx ny nz = do
+gmshModelGeoAddEllipseArc :: Int -> Int -> Int -> Int -> Maybe Int -> Maybe Double -> Maybe Double -> Maybe Double -> IO(Int)
+gmshModelGeoAddEllipseArc startTag centerTag majorTag endTag tagMaybe nxMaybe nyMaybe nzMaybe = do
    let startTag' = fromIntegral startTag
    let centerTag' = fromIntegral centerTag
    let majorTag' = fromIntegral majorTag
    let endTag' = fromIntegral endTag
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let nx = fromMaybe (0.0) nxMaybe
    let nx' = realToFrac nx
+   let ny = fromMaybe (0.0) nyMaybe
    let ny' = realToFrac ny
+   let nz = fromMaybe (0.0) nzMaybe
    let nz' = realToFrac nz
    alloca $ \errptr -> do
       oval'' <- cgmshModelGeoAddEllipseArc startTag' centerTag' majorTag' endTag' tag' nx' ny' nz' errptr
@@ -2417,9 +2501,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddEllipseArc"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddSpline :: [Int] -> Int -> IO(Int)
-gmshModelGeoAddSpline pointTags tag = do
+gmshModelGeoAddSpline :: [Int] -> Maybe Int -> IO(Int)
+gmshModelGeoAddSpline pointTags tagMaybe = do
    withArrayIntLen pointTags $ \pointTags_n' pointTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelGeoAddSpline pointTags' pointTags_n' tag' errptr
@@ -2433,9 +2518,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddSpline"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddBSpline :: [Int] -> Int -> IO(Int)
-gmshModelGeoAddBSpline pointTags tag = do
+gmshModelGeoAddBSpline :: [Int] -> Maybe Int -> IO(Int)
+gmshModelGeoAddBSpline pointTags tagMaybe = do
    withArrayIntLen pointTags $ \pointTags_n' pointTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelGeoAddBSpline pointTags' pointTags_n' tag' errptr
@@ -2449,9 +2535,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddBSpline"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddBezier :: [Int] -> Int -> IO(Int)
-gmshModelGeoAddBezier pointTags tag = do
+gmshModelGeoAddBezier :: [Int] -> Maybe Int -> IO(Int)
+gmshModelGeoAddBezier pointTags tagMaybe = do
    withArrayIntLen pointTags $ \pointTags_n' pointTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelGeoAddBezier pointTags' pointTags_n' tag' errptr
@@ -2465,9 +2552,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddBezier"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddCurveLoop :: [Int] -> Int -> IO(Int)
-gmshModelGeoAddCurveLoop curveTags tag = do
+gmshModelGeoAddCurveLoop :: [Int] -> Maybe Int -> IO(Int)
+gmshModelGeoAddCurveLoop curveTags tagMaybe = do
    withArrayIntLen curveTags $ \curveTags_n' curveTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelGeoAddCurveLoop curveTags' curveTags_n' tag' errptr
@@ -2481,9 +2569,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddCurveLoop"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddPlaneSurface :: [Int] -> Int -> IO(Int)
-gmshModelGeoAddPlaneSurface wireTags tag = do
+gmshModelGeoAddPlaneSurface :: [Int] -> Maybe Int -> IO(Int)
+gmshModelGeoAddPlaneSurface wireTags tagMaybe = do
    withArrayIntLen wireTags $ \wireTags_n' wireTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelGeoAddPlaneSurface wireTags' wireTags_n' tag' errptr
@@ -2497,10 +2586,12 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddPlaneSurface"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddSurfaceFilling :: [Int] -> Int -> Int -> IO(Int)
-gmshModelGeoAddSurfaceFilling wireTags tag sphereCenterTag = do
+gmshModelGeoAddSurfaceFilling :: [Int] -> Maybe Int -> Maybe Int -> IO(Int)
+gmshModelGeoAddSurfaceFilling wireTags tagMaybe sphereCenterTagMaybe = do
    withArrayIntLen wireTags $ \wireTags_n' wireTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
+      let sphereCenterTag = fromMaybe (-1) sphereCenterTagMaybe
       let sphereCenterTag' = fromIntegral sphereCenterTag
       alloca $ \errptr -> do
          oval'' <- cgmshModelGeoAddSurfaceFilling wireTags' wireTags_n' tag' sphereCenterTag' errptr
@@ -2515,9 +2606,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddSurfaceFilling"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddSurfaceLoop :: [Int] -> Int -> IO(Int)
-gmshModelGeoAddSurfaceLoop surfaceTags tag = do
+gmshModelGeoAddSurfaceLoop :: [Int] -> Maybe Int -> IO(Int)
+gmshModelGeoAddSurfaceLoop surfaceTags tagMaybe = do
    withArrayIntLen surfaceTags $ \surfaceTags_n' surfaceTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelGeoAddSurfaceLoop surfaceTags' surfaceTags_n' tag' errptr
@@ -2531,9 +2623,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddSurfaceLoop"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoAddVolume :: [Int] -> Int -> IO(Int)
-gmshModelGeoAddVolume shellTags tag = do
+gmshModelGeoAddVolume :: [Int] -> Maybe Int -> IO(Int)
+gmshModelGeoAddVolume shellTags tagMaybe = do
    withArrayIntLen shellTags $ \shellTags_n' shellTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelGeoAddVolume shellTags' shellTags_n' tag' errptr
@@ -2547,14 +2640,17 @@ foreign import ccall safe "gmshc.h gmshModelGeoAddVolume"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelGeoExtrude :: [(Int, Int)] -> Double -> Double -> Double -> [Int] -> [Double] -> Bool -> IO([(Int,Int)])
-gmshModelGeoExtrude dimTags dx dy dz numElements heights recombine = do
+gmshModelGeoExtrude :: [(Int, Int)] -> Double -> Double -> Double -> Maybe [Int] -> Maybe [Double] -> Maybe Bool -> IO([(Int,Int)])
+gmshModelGeoExtrude dimTags dx dy dz numElementsMaybe heightsMaybe recombineMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
       let dx' = realToFrac dx
       let dy' = realToFrac dy
       let dz' = realToFrac dz
+      let numElements = fromMaybe ([]) numElementsMaybe
       withArrayIntLen numElements $ \numElements_n' numElements' -> do
+         let heights = fromMaybe ([]) heightsMaybe
          withArrayDoubleLen heights $ \heights_n' heights' -> do
+            let recombine = fromMaybe (False) recombineMaybe
             let recombine' = fromBool recombine
             alloca $ \outDimTags' -> do
                alloca $ \outDimTags_n' -> do
@@ -2579,8 +2675,8 @@ foreign import ccall safe "gmshc.h gmshModelGeoExtrude"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelGeoRevolve :: [(Int, Int)] -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> [Int] -> [Double] -> Bool -> IO([(Int,Int)])
-gmshModelGeoRevolve dimTags x y z ax ay az angle numElements heights recombine = do
+gmshModelGeoRevolve :: [(Int, Int)] -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Maybe [Int] -> Maybe [Double] -> Maybe Bool -> IO([(Int,Int)])
+gmshModelGeoRevolve dimTags x y z ax ay az angle numElementsMaybe heightsMaybe recombineMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
       let x' = realToFrac x
       let y' = realToFrac y
@@ -2589,8 +2685,11 @@ gmshModelGeoRevolve dimTags x y z ax ay az angle numElements heights recombine =
       let ay' = realToFrac ay
       let az' = realToFrac az
       let angle' = realToFrac angle
+      let numElements = fromMaybe ([]) numElementsMaybe
       withArrayIntLen numElements $ \numElements_n' numElements' -> do
+         let heights = fromMaybe ([]) heightsMaybe
          withArrayDoubleLen heights $ \heights_n' heights' -> do
+            let recombine = fromMaybe (False) recombineMaybe
             let recombine' = fromBool recombine
             alloca $ \outDimTags' -> do
                alloca $ \outDimTags_n' -> do
@@ -2619,8 +2718,8 @@ foreign import ccall safe "gmshc.h gmshModelGeoRevolve"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelGeoTwist :: [(Int, Int)] -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> [Int] -> [Double] -> Bool -> IO([(Int,Int)])
-gmshModelGeoTwist dimTags x y z dx dy dz ax ay az angle numElements heights recombine = do
+gmshModelGeoTwist :: [(Int, Int)] -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Maybe [Int] -> Maybe [Double] -> Maybe Bool -> IO([(Int,Int)])
+gmshModelGeoTwist dimTags x y z dx dy dz ax ay az angle numElementsMaybe heightsMaybe recombineMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
       let x' = realToFrac x
       let y' = realToFrac y
@@ -2632,8 +2731,11 @@ gmshModelGeoTwist dimTags x y z dx dy dz ax ay az angle numElements heights reco
       let ay' = realToFrac ay
       let az' = realToFrac az
       let angle' = realToFrac angle
+      let numElements = fromMaybe ([]) numElementsMaybe
       withArrayIntLen numElements $ \numElements_n' numElements' -> do
+         let heights = fromMaybe ([]) heightsMaybe
          withArrayDoubleLen heights $ \heights_n' heights' -> do
+            let recombine = fromMaybe (False) recombineMaybe
             let recombine' = fromBool recombine
             alloca $ \outDimTags' -> do
                alloca $ \outDimTags_n' -> do
@@ -2775,9 +2877,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoCopy"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelGeoRemove :: [(Int, Int)] -> Bool -> IO()
-gmshModelGeoRemove dimTags recursive = do
+gmshModelGeoRemove :: [(Int, Int)] -> Maybe Bool -> IO()
+gmshModelGeoRemove dimTags recursiveMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
+      let recursive = fromMaybe (False) recursiveMaybe
       let recursive' = fromBool recursive
       alloca $ \errptr -> do
          cgmshModelGeoRemove dimTags' dimTags_n' recursive' errptr
@@ -2825,11 +2928,13 @@ foreign import ccall safe "gmshc.h gmshModelGeoMeshSetSize"
       -> CDouble
       -> Ptr CInt
       -> IO()
-gmshModelGeoMeshSetTransfiniteCurve :: Int -> Int -> String -> Double -> IO()
-gmshModelGeoMeshSetTransfiniteCurve tag nPoints meshType coef = do
+gmshModelGeoMeshSetTransfiniteCurve :: Int -> Int -> Maybe String -> Maybe Double -> IO()
+gmshModelGeoMeshSetTransfiniteCurve tag nPoints meshTypeMaybe coefMaybe = do
    let tag' = fromIntegral tag
    let nPoints' = fromIntegral nPoints
+   let meshType = fromMaybe ("Progression") meshTypeMaybe
    withCString meshType $ \meshType' -> do
+      let coef = fromMaybe (1.0) coefMaybe
       let coef' = realToFrac coef
       alloca $ \errptr -> do
          cgmshModelGeoMeshSetTransfiniteCurve tag' nPoints' meshType' coef' errptr
@@ -2843,10 +2948,12 @@ foreign import ccall safe "gmshc.h gmshModelGeoMeshSetTransfiniteCurve"
       -> CDouble
       -> Ptr CInt
       -> IO()
-gmshModelGeoMeshSetTransfiniteSurface :: Int -> String -> [Int] -> IO()
-gmshModelGeoMeshSetTransfiniteSurface tag arrangement cornerTags = do
+gmshModelGeoMeshSetTransfiniteSurface :: Int -> Maybe String -> Maybe [Int] -> IO()
+gmshModelGeoMeshSetTransfiniteSurface tag arrangementMaybe cornerTagsMaybe = do
    let tag' = fromIntegral tag
+   let arrangement = fromMaybe ("Left") arrangementMaybe
    withCString arrangement $ \arrangement' -> do
+      let cornerTags = fromMaybe ([]) cornerTagsMaybe
       withArrayIntLen cornerTags $ \cornerTags_n' cornerTags' -> do
          alloca $ \errptr -> do
             cgmshModelGeoMeshSetTransfiniteSurface tag' arrangement' cornerTags' cornerTags_n' errptr
@@ -2860,9 +2967,10 @@ foreign import ccall safe "gmshc.h gmshModelGeoMeshSetTransfiniteSurface"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelGeoMeshSetTransfiniteVolume :: Int -> [Int] -> IO()
-gmshModelGeoMeshSetTransfiniteVolume tag cornerTags = do
+gmshModelGeoMeshSetTransfiniteVolume :: Int -> Maybe [Int] -> IO()
+gmshModelGeoMeshSetTransfiniteVolume tag cornerTagsMaybe = do
    let tag' = fromIntegral tag
+   let cornerTags = fromMaybe ([]) cornerTagsMaybe
    withArrayIntLen cornerTags $ \cornerTags_n' cornerTags' -> do
       alloca $ \errptr -> do
          cgmshModelGeoMeshSetTransfiniteVolume tag' cornerTags' cornerTags_n' errptr
@@ -2875,10 +2983,11 @@ foreign import ccall safe "gmshc.h gmshModelGeoMeshSetTransfiniteVolume"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelGeoMeshSetRecombine :: Int -> Int -> Double -> IO()
-gmshModelGeoMeshSetRecombine dim tag angle = do
+gmshModelGeoMeshSetRecombine :: Int -> Int -> Maybe Double -> IO()
+gmshModelGeoMeshSetRecombine dim tag angleMaybe = do
    let dim' = fromIntegral dim
    let tag' = fromIntegral tag
+   let angle = fromMaybe (45.0) angleMaybe
    let angle' = realToFrac angle
    alloca $ \errptr -> do
       cgmshModelGeoMeshSetRecombine dim' tag' angle' errptr
@@ -2907,10 +3016,11 @@ foreign import ccall safe "gmshc.h gmshModelGeoMeshSetSmoothing"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelGeoMeshSetReverse :: Int -> Int -> Bool -> IO()
-gmshModelGeoMeshSetReverse dim tag val = do
+gmshModelGeoMeshSetReverse :: Int -> Int -> Maybe Bool -> IO()
+gmshModelGeoMeshSetReverse dim tag valMaybe = do
    let dim' = fromIntegral dim
    let tag' = fromIntegral tag
+   let val = fromMaybe (True) valMaybe
    let val' = fromBool val
    alloca $ \errptr -> do
       cgmshModelGeoMeshSetReverse dim' tag' val' errptr
@@ -2923,12 +3033,14 @@ foreign import ccall safe "gmshc.h gmshModelGeoMeshSetReverse"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccAddPoint :: Double -> Double -> Double -> Double -> Int -> IO(Int)
-gmshModelOccAddPoint x y z meshSize tag = do
+gmshModelOccAddPoint :: Double -> Double -> Double -> Maybe Double -> Maybe Int -> IO(Int)
+gmshModelOccAddPoint x y z meshSizeMaybe tagMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
+   let meshSize = fromMaybe (0.0) meshSizeMaybe
    let meshSize' = realToFrac meshSize
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddPoint x' y' z' meshSize' tag' errptr
@@ -2944,10 +3056,11 @@ foreign import ccall safe "gmshc.h gmshModelOccAddPoint"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddLine :: Int -> Int -> Int -> IO(Int)
-gmshModelOccAddLine startTag endTag tag = do
+gmshModelOccAddLine :: Int -> Int -> Maybe Int -> IO(Int)
+gmshModelOccAddLine startTag endTag tagMaybe = do
    let startTag' = fromIntegral startTag
    let endTag' = fromIntegral endTag
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddLine startTag' endTag' tag' errptr
@@ -2961,11 +3074,12 @@ foreign import ccall safe "gmshc.h gmshModelOccAddLine"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddCircleArc :: Int -> Int -> Int -> Int -> IO(Int)
-gmshModelOccAddCircleArc startTag centerTag endTag tag = do
+gmshModelOccAddCircleArc :: Int -> Int -> Int -> Maybe Int -> IO(Int)
+gmshModelOccAddCircleArc startTag centerTag endTag tagMaybe = do
    let startTag' = fromIntegral startTag
    let centerTag' = fromIntegral centerTag
    let endTag' = fromIntegral endTag
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddCircleArc startTag' centerTag' endTag' tag' errptr
@@ -2980,14 +3094,17 @@ foreign import ccall safe "gmshc.h gmshModelOccAddCircleArc"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddCircle :: Double -> Double -> Double -> Double -> Int -> Double -> Double -> IO(Int)
-gmshModelOccAddCircle x y z r tag angle1 angle2 = do
+gmshModelOccAddCircle :: Double -> Double -> Double -> Double -> Maybe Int -> Maybe Double -> Maybe Double -> IO(Int)
+gmshModelOccAddCircle x y z r tagMaybe angle1Maybe angle2Maybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
    let r' = realToFrac r
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let angle1 = fromMaybe (0.0) angle1Maybe
    let angle1' = realToFrac angle1
+   let angle2 = fromMaybe (2*pi) angle2Maybe
    let angle2' = realToFrac angle2
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddCircle x' y' z' r' tag' angle1' angle2' errptr
@@ -3005,12 +3122,13 @@ foreign import ccall safe "gmshc.h gmshModelOccAddCircle"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddEllipseArc :: Int -> Int -> Int -> Int -> Int -> IO(Int)
-gmshModelOccAddEllipseArc startTag centerTag majorTag endTag tag = do
+gmshModelOccAddEllipseArc :: Int -> Int -> Int -> Int -> Maybe Int -> IO(Int)
+gmshModelOccAddEllipseArc startTag centerTag majorTag endTag tagMaybe = do
    let startTag' = fromIntegral startTag
    let centerTag' = fromIntegral centerTag
    let majorTag' = fromIntegral majorTag
    let endTag' = fromIntegral endTag
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddEllipseArc startTag' centerTag' majorTag' endTag' tag' errptr
@@ -3026,15 +3144,18 @@ foreign import ccall safe "gmshc.h gmshModelOccAddEllipseArc"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddEllipse :: Double -> Double -> Double -> Double -> Double -> Int -> Double -> Double -> IO(Int)
-gmshModelOccAddEllipse x y z r1 r2 tag angle1 angle2 = do
+gmshModelOccAddEllipse :: Double -> Double -> Double -> Double -> Double -> Maybe Int -> Maybe Double -> Maybe Double -> IO(Int)
+gmshModelOccAddEllipse x y z r1 r2 tagMaybe angle1Maybe angle2Maybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
    let r1' = realToFrac r1
    let r2' = realToFrac r2
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let angle1 = fromMaybe (0.0) angle1Maybe
    let angle1' = realToFrac angle1
+   let angle2 = fromMaybe (2*pi) angle2Maybe
    let angle2' = realToFrac angle2
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddEllipse x' y' z' r1' r2' tag' angle1' angle2' errptr
@@ -3053,9 +3174,10 @@ foreign import ccall safe "gmshc.h gmshModelOccAddEllipse"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddSpline :: [Int] -> Int -> IO(Int)
-gmshModelOccAddSpline pointTags tag = do
+gmshModelOccAddSpline :: [Int] -> Maybe Int -> IO(Int)
+gmshModelOccAddSpline pointTags tagMaybe = do
    withArrayIntLen pointTags $ \pointTags_n' pointTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelOccAddSpline pointTags' pointTags_n' tag' errptr
@@ -3069,13 +3191,18 @@ foreign import ccall safe "gmshc.h gmshModelOccAddSpline"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddBSpline :: [Int] -> Int -> Int -> [Double] -> [Double] -> [Int] -> IO(Int)
-gmshModelOccAddBSpline pointTags tag degree weights knots multiplicities = do
+gmshModelOccAddBSpline :: [Int] -> Maybe Int -> Maybe Int -> Maybe [Double] -> Maybe [Double] -> Maybe [Int] -> IO(Int)
+gmshModelOccAddBSpline pointTags tagMaybe degreeMaybe weightsMaybe knotsMaybe multiplicitiesMaybe = do
    withArrayIntLen pointTags $ \pointTags_n' pointTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
+      let degree = fromMaybe (3) degreeMaybe
       let degree' = fromIntegral degree
+      let weights = fromMaybe ([]) weightsMaybe
       withArrayDoubleLen weights $ \weights_n' weights' -> do
+         let knots = fromMaybe ([]) knotsMaybe
          withArrayDoubleLen knots $ \knots_n' knots' -> do
+            let multiplicities = fromMaybe ([]) multiplicitiesMaybe
             withArrayIntLen multiplicities $ \multiplicities_n' multiplicities' -> do
                alloca $ \errptr -> do
                   oval'' <- cgmshModelOccAddBSpline pointTags' pointTags_n' tag' degree' weights' weights_n' knots' knots_n' multiplicities' multiplicities_n' errptr
@@ -3096,9 +3223,10 @@ foreign import ccall safe "gmshc.h gmshModelOccAddBSpline"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddBezier :: [Int] -> Int -> IO(Int)
-gmshModelOccAddBezier pointTags tag = do
+gmshModelOccAddBezier :: [Int] -> Maybe Int -> IO(Int)
+gmshModelOccAddBezier pointTags tagMaybe = do
    withArrayIntLen pointTags $ \pointTags_n' pointTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelOccAddBezier pointTags' pointTags_n' tag' errptr
@@ -3112,10 +3240,12 @@ foreign import ccall safe "gmshc.h gmshModelOccAddBezier"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddWire :: [Int] -> Int -> Bool -> IO(Int)
-gmshModelOccAddWire curveTags tag checkClosed = do
+gmshModelOccAddWire :: [Int] -> Maybe Int -> Maybe Bool -> IO(Int)
+gmshModelOccAddWire curveTags tagMaybe checkClosedMaybe = do
    withArrayIntLen curveTags $ \curveTags_n' curveTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
+      let checkClosed = fromMaybe (False) checkClosedMaybe
       let checkClosed' = fromBool checkClosed
       alloca $ \errptr -> do
          oval'' <- cgmshModelOccAddWire curveTags' curveTags_n' tag' checkClosed' errptr
@@ -3130,9 +3260,10 @@ foreign import ccall safe "gmshc.h gmshModelOccAddWire"
       -> CBool
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddCurveLoop :: [Int] -> Int -> IO(Int)
-gmshModelOccAddCurveLoop curveTags tag = do
+gmshModelOccAddCurveLoop :: [Int] -> Maybe Int -> IO(Int)
+gmshModelOccAddCurveLoop curveTags tagMaybe = do
    withArrayIntLen curveTags $ \curveTags_n' curveTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelOccAddCurveLoop curveTags' curveTags_n' tag' errptr
@@ -3146,14 +3277,16 @@ foreign import ccall safe "gmshc.h gmshModelOccAddCurveLoop"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddRectangle :: Double -> Double -> Double -> Double -> Double -> Int -> Double -> IO(Int)
-gmshModelOccAddRectangle x y z dx dy tag roundedRadius = do
+gmshModelOccAddRectangle :: Double -> Double -> Double -> Double -> Double -> Maybe Int -> Maybe Double -> IO(Int)
+gmshModelOccAddRectangle x y z dx dy tagMaybe roundedRadiusMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
    let dx' = realToFrac dx
    let dy' = realToFrac dy
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let roundedRadius = fromMaybe (0.0) roundedRadiusMaybe
    let roundedRadius' = realToFrac roundedRadius
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddRectangle x' y' z' dx' dy' tag' roundedRadius' errptr
@@ -3171,13 +3304,14 @@ foreign import ccall safe "gmshc.h gmshModelOccAddRectangle"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddDisk :: Double -> Double -> Double -> Double -> Double -> Int -> IO(Int)
-gmshModelOccAddDisk xc yc zc rx ry tag = do
+gmshModelOccAddDisk :: Double -> Double -> Double -> Double -> Double -> Maybe Int -> IO(Int)
+gmshModelOccAddDisk xc yc zc rx ry tagMaybe = do
    let xc' = realToFrac xc
    let yc' = realToFrac yc
    let zc' = realToFrac zc
    let rx' = realToFrac rx
    let ry' = realToFrac ry
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddDisk xc' yc' zc' rx' ry' tag' errptr
@@ -3194,9 +3328,10 @@ foreign import ccall safe "gmshc.h gmshModelOccAddDisk"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddPlaneSurface :: [Int] -> Int -> IO(Int)
-gmshModelOccAddPlaneSurface wireTags tag = do
+gmshModelOccAddPlaneSurface :: [Int] -> Maybe Int -> IO(Int)
+gmshModelOccAddPlaneSurface wireTags tagMaybe = do
    withArrayIntLen wireTags $ \wireTags_n' wireTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelOccAddPlaneSurface wireTags' wireTags_n' tag' errptr
@@ -3210,10 +3345,12 @@ foreign import ccall safe "gmshc.h gmshModelOccAddPlaneSurface"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddSurfaceFilling :: Int -> Int -> [Int] -> IO(Int)
-gmshModelOccAddSurfaceFilling wireTag tag pointTags = do
+gmshModelOccAddSurfaceFilling :: Int -> Maybe Int -> Maybe [Int] -> IO(Int)
+gmshModelOccAddSurfaceFilling wireTag tagMaybe pointTagsMaybe = do
    let wireTag' = fromIntegral wireTag
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let pointTags = fromMaybe ([]) pointTagsMaybe
    withArrayIntLen pointTags $ \pointTags_n' pointTags' -> do
       alloca $ \errptr -> do
          oval'' <- cgmshModelOccAddSurfaceFilling wireTag' tag' pointTags' pointTags_n' errptr
@@ -3228,10 +3365,12 @@ foreign import ccall safe "gmshc.h gmshModelOccAddSurfaceFilling"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddSurfaceLoop :: [Int] -> Int -> Bool -> IO(Int)
-gmshModelOccAddSurfaceLoop surfaceTags tag sewing = do
+gmshModelOccAddSurfaceLoop :: [Int] -> Maybe Int -> Maybe Bool -> IO(Int)
+gmshModelOccAddSurfaceLoop surfaceTags tagMaybe sewingMaybe = do
    withArrayIntLen surfaceTags $ \surfaceTags_n' surfaceTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
+      let sewing = fromMaybe (False) sewingMaybe
       let sewing' = fromBool sewing
       alloca $ \errptr -> do
          oval'' <- cgmshModelOccAddSurfaceLoop surfaceTags' surfaceTags_n' tag' sewing' errptr
@@ -3246,9 +3385,10 @@ foreign import ccall safe "gmshc.h gmshModelOccAddSurfaceLoop"
       -> CBool
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddVolume :: [Int] -> Int -> IO(Int)
-gmshModelOccAddVolume shellTags tag = do
+gmshModelOccAddVolume :: [Int] -> Maybe Int -> IO(Int)
+gmshModelOccAddVolume shellTags tagMaybe = do
    withArrayIntLen shellTags $ \shellTags_n' shellTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshModelOccAddVolume shellTags' shellTags_n' tag' errptr
@@ -3262,15 +3402,19 @@ foreign import ccall safe "gmshc.h gmshModelOccAddVolume"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddSphere :: Double -> Double -> Double -> Double -> Int -> Double -> Double -> Double -> IO(Int)
-gmshModelOccAddSphere xc yc zc radius tag angle1 angle2 angle3 = do
+gmshModelOccAddSphere :: Double -> Double -> Double -> Double -> Maybe Int -> Maybe Double -> Maybe Double -> Maybe Double -> IO(Int)
+gmshModelOccAddSphere xc yc zc radius tagMaybe angle1Maybe angle2Maybe angle3Maybe = do
    let xc' = realToFrac xc
    let yc' = realToFrac yc
    let zc' = realToFrac zc
    let radius' = realToFrac radius
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let angle1 = fromMaybe (-pi/2) angle1Maybe
    let angle1' = realToFrac angle1
+   let angle2 = fromMaybe (pi/2) angle2Maybe
    let angle2' = realToFrac angle2
+   let angle3 = fromMaybe (2*pi) angle3Maybe
    let angle3' = realToFrac angle3
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddSphere xc' yc' zc' radius' tag' angle1' angle2' angle3' errptr
@@ -3289,14 +3433,15 @@ foreign import ccall safe "gmshc.h gmshModelOccAddSphere"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddBox :: Double -> Double -> Double -> Double -> Double -> Double -> Int -> IO(Int)
-gmshModelOccAddBox x y z dx dy dz tag = do
+gmshModelOccAddBox :: Double -> Double -> Double -> Double -> Double -> Double -> Maybe Int -> IO(Int)
+gmshModelOccAddBox x y z dx dy dz tagMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
    let dx' = realToFrac dx
    let dy' = realToFrac dy
    let dz' = realToFrac dz
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddBox x' y' z' dx' dy' dz' tag' errptr
@@ -3314,8 +3459,8 @@ foreign import ccall safe "gmshc.h gmshModelOccAddBox"
       -> CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddCylinder :: Double -> Double -> Double -> Double -> Double -> Double -> Double -> Int -> Double -> IO(Int)
-gmshModelOccAddCylinder x y z dx dy dz r tag angle = do
+gmshModelOccAddCylinder :: Double -> Double -> Double -> Double -> Double -> Double -> Double -> Maybe Int -> Maybe Double -> IO(Int)
+gmshModelOccAddCylinder x y z dx dy dz r tagMaybe angleMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
@@ -3323,7 +3468,9 @@ gmshModelOccAddCylinder x y z dx dy dz r tag angle = do
    let dy' = realToFrac dy
    let dz' = realToFrac dz
    let r' = realToFrac r
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let angle = fromMaybe (2*pi) angleMaybe
    let angle' = realToFrac angle
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddCylinder x' y' z' dx' dy' dz' r' tag' angle' errptr
@@ -3343,8 +3490,8 @@ foreign import ccall safe "gmshc.h gmshModelOccAddCylinder"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddCone :: Double -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Int -> Double -> IO(Int)
-gmshModelOccAddCone x y z dx dy dz r1 r2 tag angle = do
+gmshModelOccAddCone :: Double -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Maybe Int -> Maybe Double -> IO(Int)
+gmshModelOccAddCone x y z dx dy dz r1 r2 tagMaybe angleMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
@@ -3353,7 +3500,9 @@ gmshModelOccAddCone x y z dx dy dz r1 r2 tag angle = do
    let dz' = realToFrac dz
    let r1' = realToFrac r1
    let r2' = realToFrac r2
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let angle = fromMaybe (2*pi) angleMaybe
    let angle' = realToFrac angle
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddCone x' y' z' dx' dy' dz' r1' r2' tag' angle' errptr
@@ -3374,15 +3523,17 @@ foreign import ccall safe "gmshc.h gmshModelOccAddCone"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddWedge :: Double -> Double -> Double -> Double -> Double -> Double -> Int -> Double -> IO(Int)
-gmshModelOccAddWedge x y z dx dy dz tag ltx = do
+gmshModelOccAddWedge :: Double -> Double -> Double -> Double -> Double -> Double -> Maybe Int -> Maybe Double -> IO(Int)
+gmshModelOccAddWedge x y z dx dy dz tagMaybe ltxMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
    let dx' = realToFrac dx
    let dy' = realToFrac dy
    let dz' = realToFrac dz
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let ltx = fromMaybe (0.0) ltxMaybe
    let ltx' = realToFrac ltx
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddWedge x' y' z' dx' dy' dz' tag' ltx' errptr
@@ -3401,14 +3552,16 @@ foreign import ccall safe "gmshc.h gmshModelOccAddWedge"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddTorus :: Double -> Double -> Double -> Double -> Double -> Int -> Double -> IO(Int)
-gmshModelOccAddTorus x y z r1 r2 tag angle = do
+gmshModelOccAddTorus :: Double -> Double -> Double -> Double -> Double -> Maybe Int -> Maybe Double -> IO(Int)
+gmshModelOccAddTorus x y z r1 r2 tagMaybe angleMaybe = do
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
    let r1' = realToFrac r1
    let r2' = realToFrac r2
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
+   let angle = fromMaybe (2*pi) angleMaybe
    let angle' = realToFrac angle
    alloca $ \errptr -> do
       oval'' <- cgmshModelOccAddTorus x' y' z' r1' r2' tag' angle' errptr
@@ -3426,11 +3579,14 @@ foreign import ccall safe "gmshc.h gmshModelOccAddTorus"
       -> CDouble
       -> Ptr CInt
       -> IO(CInt)
-gmshModelOccAddThruSections :: [Int] -> Int -> Bool -> Bool -> IO([(Int,Int)])
-gmshModelOccAddThruSections wireTags tag makeSolid makeRuled = do
+gmshModelOccAddThruSections :: [Int] -> Maybe Int -> Maybe Bool -> Maybe Bool -> IO([(Int,Int)])
+gmshModelOccAddThruSections wireTags tagMaybe makeSolidMaybe makeRuledMaybe = do
    withArrayIntLen wireTags $ \wireTags_n' wireTags' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
+      let makeSolid = fromMaybe (True) makeSolidMaybe
       let makeSolid' = fromBool makeSolid
+      let makeRuled = fromMaybe (False) makeRuledMaybe
       let makeRuled' = fromBool makeRuled
       alloca $ \outDimTags' -> do
          alloca $ \outDimTags_n' -> do
@@ -3450,11 +3606,12 @@ foreign import ccall safe "gmshc.h gmshModelOccAddThruSections"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccAddThickSolid :: Int -> [Int] -> Double -> Int -> IO([(Int,Int)])
-gmshModelOccAddThickSolid volumeTag excludeSurfaceTags offset tag = do
+gmshModelOccAddThickSolid :: Int -> [Int] -> Double -> Maybe Int -> IO([(Int,Int)])
+gmshModelOccAddThickSolid volumeTag excludeSurfaceTags offset tagMaybe = do
    let volumeTag' = fromIntegral volumeTag
    withArrayIntLen excludeSurfaceTags $ \excludeSurfaceTags_n' excludeSurfaceTags' -> do
       let offset' = realToFrac offset
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \outDimTags' -> do
          alloca $ \outDimTags_n' -> do
@@ -3474,14 +3631,17 @@ foreign import ccall safe "gmshc.h gmshModelOccAddThickSolid"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshModelOccExtrude :: [(Int, Int)] -> Double -> Double -> Double -> [Int] -> [Double] -> Bool -> IO([(Int,Int)])
-gmshModelOccExtrude dimTags dx dy dz numElements heights recombine = do
+gmshModelOccExtrude :: [(Int, Int)] -> Double -> Double -> Double -> Maybe [Int] -> Maybe [Double] -> Maybe Bool -> IO([(Int,Int)])
+gmshModelOccExtrude dimTags dx dy dz numElementsMaybe heightsMaybe recombineMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
       let dx' = realToFrac dx
       let dy' = realToFrac dy
       let dz' = realToFrac dz
+      let numElements = fromMaybe ([]) numElementsMaybe
       withArrayIntLen numElements $ \numElements_n' numElements' -> do
+         let heights = fromMaybe ([]) heightsMaybe
          withArrayDoubleLen heights $ \heights_n' heights' -> do
+            let recombine = fromMaybe (False) recombineMaybe
             let recombine' = fromBool recombine
             alloca $ \outDimTags' -> do
                alloca $ \outDimTags_n' -> do
@@ -3506,8 +3666,8 @@ foreign import ccall safe "gmshc.h gmshModelOccExtrude"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccRevolve :: [(Int, Int)] -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> [Int] -> [Double] -> Bool -> IO([(Int,Int)])
-gmshModelOccRevolve dimTags x y z ax ay az angle numElements heights recombine = do
+gmshModelOccRevolve :: [(Int, Int)] -> Double -> Double -> Double -> Double -> Double -> Double -> Double -> Maybe [Int] -> Maybe [Double] -> Maybe Bool -> IO([(Int,Int)])
+gmshModelOccRevolve dimTags x y z ax ay az angle numElementsMaybe heightsMaybe recombineMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
       let x' = realToFrac x
       let y' = realToFrac y
@@ -3516,8 +3676,11 @@ gmshModelOccRevolve dimTags x y z ax ay az angle numElements heights recombine =
       let ay' = realToFrac ay
       let az' = realToFrac az
       let angle' = realToFrac angle
+      let numElements = fromMaybe ([]) numElementsMaybe
       withArrayIntLen numElements $ \numElements_n' numElements' -> do
+         let heights = fromMaybe ([]) heightsMaybe
          withArrayDoubleLen heights $ \heights_n' heights' -> do
+            let recombine = fromMaybe (False) recombineMaybe
             let recombine' = fromBool recombine
             alloca $ \outDimTags' -> do
                alloca $ \outDimTags_n' -> do
@@ -3566,11 +3729,12 @@ foreign import ccall safe "gmshc.h gmshModelOccAddPipe"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelOccFillet :: [Int] -> [Int] -> [Double] -> Bool -> IO([(Int,Int)])
-gmshModelOccFillet volumeTags curveTags radii removeVolume = do
+gmshModelOccFillet :: [Int] -> [Int] -> [Double] -> Maybe Bool -> IO([(Int,Int)])
+gmshModelOccFillet volumeTags curveTags radii removeVolumeMaybe = do
    withArrayIntLen volumeTags $ \volumeTags_n' volumeTags' -> do
       withArrayIntLen curveTags $ \curveTags_n' curveTags' -> do
          withArrayDoubleLen radii $ \radii_n' radii' -> do
+            let removeVolume = fromMaybe (True) removeVolumeMaybe
             let removeVolume' = fromBool removeVolume
             alloca $ \outDimTags' -> do
                alloca $ \outDimTags_n' -> do
@@ -3592,12 +3756,13 @@ foreign import ccall safe "gmshc.h gmshModelOccFillet"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccChamfer :: [Int] -> [Int] -> [Int] -> [Double] -> Bool -> IO([(Int,Int)])
-gmshModelOccChamfer volumeTags curveTags surfaceTags distances removeVolume = do
+gmshModelOccChamfer :: [Int] -> [Int] -> [Int] -> [Double] -> Maybe Bool -> IO([(Int,Int)])
+gmshModelOccChamfer volumeTags curveTags surfaceTags distances removeVolumeMaybe = do
    withArrayIntLen volumeTags $ \volumeTags_n' volumeTags' -> do
       withArrayIntLen curveTags $ \curveTags_n' curveTags' -> do
          withArrayIntLen surfaceTags $ \surfaceTags_n' surfaceTags' -> do
             withArrayDoubleLen distances $ \distances_n' distances' -> do
+               let removeVolume = fromMaybe (True) removeVolumeMaybe
                let removeVolume' = fromBool removeVolume
                alloca $ \outDimTags' -> do
                   alloca $ \outDimTags_n' -> do
@@ -3621,12 +3786,15 @@ foreign import ccall safe "gmshc.h gmshModelOccChamfer"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccFuse :: [(Int, Int)] -> [(Int, Int)] -> Int -> Bool -> Bool -> IO([(Int,Int)], [[(Int, Int)]])
-gmshModelOccFuse objectDimTags toolDimTags tag removeObject removeTool = do
+gmshModelOccFuse :: [(Int, Int)] -> [(Int, Int)] -> Maybe Int -> Maybe Bool -> Maybe Bool -> IO([(Int,Int)], [[(Int, Int)]])
+gmshModelOccFuse objectDimTags toolDimTags tagMaybe removeObjectMaybe removeToolMaybe = do
    withArrayPairLen objectDimTags $ \objectDimTags_n' objectDimTags' -> do
       withArrayPairLen toolDimTags $ \toolDimTags_n' toolDimTags' -> do
+         let tag = fromMaybe (-1) tagMaybe
          let tag' = fromIntegral tag
+         let removeObject = fromMaybe (True) removeObjectMaybe
          let removeObject' = fromBool removeObject
+         let removeTool = fromMaybe (True) removeToolMaybe
          let removeTool' = fromBool removeTool
          alloca $ \outDimTags' -> do
             alloca $ \outDimTags_n' -> do
@@ -3655,12 +3823,15 @@ foreign import ccall safe "gmshc.h gmshModelOccFuse"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccIntersect :: [(Int, Int)] -> [(Int, Int)] -> Int -> Bool -> Bool -> IO([(Int,Int)], [[(Int, Int)]])
-gmshModelOccIntersect objectDimTags toolDimTags tag removeObject removeTool = do
+gmshModelOccIntersect :: [(Int, Int)] -> [(Int, Int)] -> Maybe Int -> Maybe Bool -> Maybe Bool -> IO([(Int,Int)], [[(Int, Int)]])
+gmshModelOccIntersect objectDimTags toolDimTags tagMaybe removeObjectMaybe removeToolMaybe = do
    withArrayPairLen objectDimTags $ \objectDimTags_n' objectDimTags' -> do
       withArrayPairLen toolDimTags $ \toolDimTags_n' toolDimTags' -> do
+         let tag = fromMaybe (-1) tagMaybe
          let tag' = fromIntegral tag
+         let removeObject = fromMaybe (True) removeObjectMaybe
          let removeObject' = fromBool removeObject
+         let removeTool = fromMaybe (True) removeToolMaybe
          let removeTool' = fromBool removeTool
          alloca $ \outDimTags' -> do
             alloca $ \outDimTags_n' -> do
@@ -3689,12 +3860,15 @@ foreign import ccall safe "gmshc.h gmshModelOccIntersect"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccCut :: [(Int, Int)] -> [(Int, Int)] -> Int -> Bool -> Bool -> IO([(Int,Int)], [[(Int, Int)]])
-gmshModelOccCut objectDimTags toolDimTags tag removeObject removeTool = do
+gmshModelOccCut :: [(Int, Int)] -> [(Int, Int)] -> Maybe Int -> Maybe Bool -> Maybe Bool -> IO([(Int,Int)], [[(Int, Int)]])
+gmshModelOccCut objectDimTags toolDimTags tagMaybe removeObjectMaybe removeToolMaybe = do
    withArrayPairLen objectDimTags $ \objectDimTags_n' objectDimTags' -> do
       withArrayPairLen toolDimTags $ \toolDimTags_n' toolDimTags' -> do
+         let tag = fromMaybe (-1) tagMaybe
          let tag' = fromIntegral tag
+         let removeObject = fromMaybe (True) removeObjectMaybe
          let removeObject' = fromBool removeObject
+         let removeTool = fromMaybe (True) removeToolMaybe
          let removeTool' = fromBool removeTool
          alloca $ \outDimTags' -> do
             alloca $ \outDimTags_n' -> do
@@ -3723,12 +3897,15 @@ foreign import ccall safe "gmshc.h gmshModelOccCut"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccFragment :: [(Int, Int)] -> [(Int, Int)] -> Int -> Bool -> Bool -> IO([(Int,Int)], [[(Int, Int)]])
-gmshModelOccFragment objectDimTags toolDimTags tag removeObject removeTool = do
+gmshModelOccFragment :: [(Int, Int)] -> [(Int, Int)] -> Maybe Int -> Maybe Bool -> Maybe Bool -> IO([(Int,Int)], [[(Int, Int)]])
+gmshModelOccFragment objectDimTags toolDimTags tagMaybe removeObjectMaybe removeToolMaybe = do
    withArrayPairLen objectDimTags $ \objectDimTags_n' objectDimTags' -> do
       withArrayPairLen toolDimTags $ \toolDimTags_n' toolDimTags' -> do
+         let tag = fromMaybe (-1) tagMaybe
          let tag' = fromIntegral tag
+         let removeObject = fromMaybe (True) removeObjectMaybe
          let removeObject' = fromBool removeObject
+         let removeTool = fromMaybe (True) removeToolMaybe
          let removeTool' = fromBool removeTool
          alloca $ \outDimTags' -> do
             alloca $ \outDimTags_n' -> do
@@ -3883,9 +4060,10 @@ foreign import ccall safe "gmshc.h gmshModelOccCopy"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshModelOccRemove :: [(Int, Int)] -> Bool -> IO()
-gmshModelOccRemove dimTags recursive = do
+gmshModelOccRemove :: [(Int, Int)] -> Maybe Bool -> IO()
+gmshModelOccRemove dimTags recursiveMaybe = do
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
+      let recursive = fromMaybe (False) recursiveMaybe
       let recursive' = fromBool recursive
       alloca $ \errptr -> do
          cgmshModelOccRemove dimTags' dimTags_n' recursive' errptr
@@ -3908,13 +4086,19 @@ foreign import ccall safe "gmshc.h gmshModelOccRemoveAllDuplicates"
    cgmshModelOccRemoveAllDuplicates
       :: Ptr CInt
       -> IO()
-gmshModelOccHealShapes :: [(Int, Int)] -> Double -> Bool -> Bool -> Bool -> Bool -> IO([(Int,Int)])
-gmshModelOccHealShapes dimTags tolerance fixDegenerated fixSmallEdges fixSmallFaces sewFaces = do
+gmshModelOccHealShapes :: Maybe [(Int, Int)] -> Maybe Double -> Maybe Bool -> Maybe Bool -> Maybe Bool -> Maybe Bool -> IO([(Int,Int)])
+gmshModelOccHealShapes dimTagsMaybe toleranceMaybe fixDegeneratedMaybe fixSmallEdgesMaybe fixSmallFacesMaybe sewFacesMaybe = do
+   let dimTags = fromMaybe ([]) dimTagsMaybe
    withArrayPairLen dimTags $ \dimTags_n' dimTags' -> do
+      let tolerance = fromMaybe (1e-8) toleranceMaybe
       let tolerance' = realToFrac tolerance
+      let fixDegenerated = fromMaybe (True) fixDegeneratedMaybe
       let fixDegenerated' = fromBool fixDegenerated
+      let fixSmallEdges = fromMaybe (True) fixSmallEdgesMaybe
       let fixSmallEdges' = fromBool fixSmallEdges
+      let fixSmallFaces = fromMaybe (True) fixSmallFacesMaybe
       let fixSmallFaces' = fromBool fixSmallFaces
+      let sewFaces = fromMaybe (True) sewFacesMaybe
       let sewFaces' = fromBool sewFaces
       alloca $ \outDimTags' -> do
          alloca $ \outDimTags_n' -> do
@@ -3936,10 +4120,12 @@ foreign import ccall safe "gmshc.h gmshModelOccHealShapes"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshModelOccImportShapes :: String -> Bool -> String -> IO([(Int,Int)])
-gmshModelOccImportShapes fileName highestDimOnly format = do
+gmshModelOccImportShapes :: String -> Maybe Bool -> Maybe String -> IO([(Int,Int)])
+gmshModelOccImportShapes fileName highestDimOnlyMaybe formatMaybe = do
    withCString fileName $ \fileName' -> do
+      let highestDimOnly = fromMaybe (True) highestDimOnlyMaybe
       let highestDimOnly' = fromBool highestDimOnly
+      let format = fromMaybe ("") formatMaybe
       withCString format $ \format' -> do
          alloca $ \outDimTags' -> do
             alloca $ \outDimTags_n' -> do
@@ -4045,9 +4231,10 @@ foreign import ccall safe "gmshc.h gmshModelOccSynchronize"
    cgmshModelOccSynchronize
       :: Ptr CInt
       -> IO()
-gmshViewAdd :: String -> Int -> IO(Int)
-gmshViewAdd name tag = do
+gmshViewAdd :: String -> Maybe Int -> IO(Int)
+gmshViewAdd name tagMaybe = do
    withCString name $ \name' -> do
+      let tag = fromMaybe (-1) tagMaybe
       let tag' = fromIntegral tag
       alloca $ \errptr -> do
          oval'' <- cgmshViewAdd name' tag' errptr
@@ -4100,16 +4287,19 @@ foreign import ccall safe "gmshc.h gmshViewGetTags"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshViewAddModelData :: Int -> Int -> String -> String -> [Int] -> [[Double]] -> Double -> Int -> Int -> IO()
-gmshViewAddModelData tag step modelName dataType tags daatta time numComponents partition = do
+gmshViewAddModelData :: Int -> Int -> String -> String -> [Int] -> [[Double]] -> Maybe Double -> Maybe Int -> Maybe Int -> IO()
+gmshViewAddModelData tag step modelName dataType tags daatta timeMaybe numComponentsMaybe partitionMaybe = do
    let tag' = fromIntegral tag
    let step' = fromIntegral step
    withCString modelName $ \modelName' -> do
       withCString dataType $ \dataType' -> do
          withArrayIntLen tags $ \tags_n' tags' -> do
             withArrayArrayDoubleLen daatta $ \daatta_nn' daatta_n' daatta' -> do
+                  let time = fromMaybe (0.0) timeMaybe
                   let time' = realToFrac time
+                  let numComponents = fromMaybe (-1) numComponentsMaybe
                   let numComponents' = fromIntegral numComponents
+                  let partition = fromMaybe (0) partitionMaybe
                   let partition' = fromIntegral partition
                   alloca $ \errptr -> do
                      cgmshViewAddModelData tag' step' modelName' dataType' tags' tags_n' daatta' daatta_n' daatta_nn' time' numComponents' partition' errptr
@@ -4217,10 +4407,12 @@ foreign import ccall safe "gmshc.h gmshViewGetListData"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshViewAddAlias :: Int -> Bool -> Int -> IO(Int)
-gmshViewAddAlias refTag copyOptions tag = do
+gmshViewAddAlias :: Int -> Maybe Bool -> Maybe Int -> IO(Int)
+gmshViewAddAlias refTag copyOptionsMaybe tagMaybe = do
    let refTag' = fromIntegral refTag
+   let copyOptions = fromMaybe (False) copyOptionsMaybe
    let copyOptions' = fromBool copyOptions
+   let tag = fromMaybe (-1) tagMaybe
    let tag' = fromIntegral tag
    alloca $ \errptr -> do
       oval'' <- cgmshViewAddAlias refTag' copyOptions' tag' errptr
@@ -4248,10 +4440,11 @@ foreign import ccall safe "gmshc.h gmshViewCopyOptions"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshViewCombine :: String -> String -> Bool -> IO()
-gmshViewCombine what how remove = do
+gmshViewCombine :: String -> String -> Maybe Bool -> IO()
+gmshViewCombine what how removeMaybe = do
    withCString what $ \what' -> do
       withCString how $ \how' -> do
+         let remove = fromMaybe (False) removeMaybe
          let remove' = fromBool remove
          alloca $ \errptr -> do
             cgmshViewCombine what' how' remove' errptr
@@ -4264,18 +4457,25 @@ foreign import ccall safe "gmshc.h gmshViewCombine"
       -> CBool
       -> Ptr CInt
       -> IO()
-gmshViewProbe :: Int -> Double -> Double -> Double -> Int -> Int -> Bool -> Double -> [Double] -> [Double] -> [Double] -> IO([Double])
-gmshViewProbe tag x y z step numComp gradient tolerance xElemCoord yElemCoord zElemCoord = do
+gmshViewProbe :: Int -> Double -> Double -> Double -> Maybe Int -> Maybe Int -> Maybe Bool -> Maybe Double -> Maybe [Double] -> Maybe [Double] -> Maybe [Double] -> IO([Double])
+gmshViewProbe tag x y z stepMaybe numCompMaybe gradientMaybe toleranceMaybe xElemCoordMaybe yElemCoordMaybe zElemCoordMaybe = do
    let tag' = fromIntegral tag
    let x' = realToFrac x
    let y' = realToFrac y
    let z' = realToFrac z
+   let step = fromMaybe (-1) stepMaybe
    let step' = fromIntegral step
+   let numComp = fromMaybe (-1) numCompMaybe
    let numComp' = fromIntegral numComp
+   let gradient = fromMaybe (False) gradientMaybe
    let gradient' = fromBool gradient
+   let tolerance = fromMaybe (0.0) toleranceMaybe
    let tolerance' = realToFrac tolerance
+   let xElemCoord = fromMaybe ([]) xElemCoordMaybe
    withArrayDoubleLen xElemCoord $ \xElemCoord_n' xElemCoord' -> do
+      let yElemCoord = fromMaybe ([]) yElemCoordMaybe
       withArrayDoubleLen yElemCoord $ \yElemCoord_n' yElemCoord' -> do
+         let zElemCoord = fromMaybe ([]) zElemCoordMaybe
          withArrayDoubleLen zElemCoord $ \zElemCoord_n' zElemCoord' -> do
             alloca $ \value' -> do
                alloca $ \value_n' -> do
@@ -4304,10 +4504,11 @@ foreign import ccall safe "gmshc.h gmshViewProbe"
       -> CInt
       -> Ptr CInt
       -> IO()
-gmshViewWrite :: Int -> String -> Bool -> IO()
-gmshViewWrite tag fileName append = do
+gmshViewWrite :: Int -> String -> Maybe Bool -> IO()
+gmshViewWrite tag fileName appendMaybe = do
    let tag' = fromIntegral tag
    withCString fileName $ \fileName' -> do
+      let append = fromMaybe (False) appendMaybe
       let append' = fromBool append
       alloca $ \errptr -> do
          cgmshViewWrite tag' fileName' append' errptr
@@ -4384,8 +4585,9 @@ foreign import ccall safe "gmshc.h gmshFltkInitialize"
    cgmshFltkInitialize
       :: Ptr CInt
       -> IO()
-gmshFltkWait :: Double -> IO()
-gmshFltkWait time = do
+gmshFltkWait :: Maybe Double -> IO()
+gmshFltkWait timeMaybe = do
+   let time = fromMaybe (-1.0) timeMaybe
    let time' = realToFrac time
    alloca $ \errptr -> do
       cgmshFltkWait time' errptr
@@ -4406,8 +4608,9 @@ foreign import ccall safe "gmshc.h gmshFltkUpdate"
    cgmshFltkUpdate
       :: Ptr CInt
       -> IO()
-gmshFltkAwake :: String -> IO()
-gmshFltkAwake action = do
+gmshFltkAwake :: Maybe String -> IO()
+gmshFltkAwake actionMaybe = do
+   let action = fromMaybe ("") actionMaybe
    withCString action $ \action' -> do
       alloca $ \errptr -> do
          cgmshFltkAwake action' errptr
@@ -4448,8 +4651,9 @@ foreign import ccall safe "gmshc.h gmshFltkRun"
    cgmshFltkRun
       :: Ptr CInt
       -> IO()
-gmshFltkSelectEntities :: Int -> IO(Int, [(Int,Int)])
-gmshFltkSelectEntities dim = do
+gmshFltkSelectEntities :: Maybe Int -> IO(Int, [(Int,Int)])
+gmshFltkSelectEntities dimMaybe = do
+   let dim = fromMaybe (-1) dimMaybe
    let dim' = fromIntegral dim
    alloca $ \dimTags' -> do
       alloca $ \dimTags_n' -> do
@@ -4498,9 +4702,10 @@ foreign import ccall safe "gmshc.h gmshFltkSelectViews"
       -> Ptr CInt
       -> Ptr CInt
       -> IO(CInt)
-gmshOnelabSet :: String -> String -> IO()
-gmshOnelabSet daatta format = do
+gmshOnelabSet :: String -> Maybe String -> IO()
+gmshOnelabSet daatta formatMaybe = do
    withCString daatta $ \daatta' -> do
+      let format = fromMaybe ("json") formatMaybe
       withCString format $ \format' -> do
          alloca $ \errptr -> do
             cgmshOnelabSet daatta' format' errptr
@@ -4512,9 +4717,11 @@ foreign import ccall safe "gmshc.h gmshOnelabSet"
       -> CString
       -> Ptr CInt
       -> IO()
-gmshOnelabGet :: String -> String -> IO(String)
-gmshOnelabGet name format = do
+gmshOnelabGet :: Maybe String -> Maybe String -> IO(String)
+gmshOnelabGet nameMaybe formatMaybe = do
+   let name = fromMaybe ("") nameMaybe
    withCString name $ \name' -> do
+      let format = fromMaybe ("json") formatMaybe
       withCString format $ \format' -> do
          alloca $ \daatta' -> do
             alloca $ \errptr -> do
@@ -4594,8 +4801,9 @@ foreign import ccall safe "gmshc.h gmshOnelabGetString"
       -> Ptr CInt
       -> Ptr CInt
       -> IO()
-gmshOnelabClear :: String -> IO()
-gmshOnelabClear name = do
+gmshOnelabClear :: Maybe String -> IO()
+gmshOnelabClear nameMaybe = do
+   let name = fromMaybe ("") nameMaybe
    withCString name $ \name' -> do
       alloca $ \errptr -> do
          cgmshOnelabClear name' errptr
@@ -4606,9 +4814,11 @@ foreign import ccall safe "gmshc.h gmshOnelabClear"
       :: CString
       -> Ptr CInt
       -> IO()
-gmshOnelabRun :: String -> String -> IO()
-gmshOnelabRun name command = do
+gmshOnelabRun :: Maybe String -> Maybe String -> IO()
+gmshOnelabRun nameMaybe commandMaybe = do
+   let name = fromMaybe ("") nameMaybe
    withCString name $ \name' -> do
+      let command = fromMaybe ("") commandMaybe
       withCString command $ \command' -> do
          alloca $ \errptr -> do
             cgmshOnelabRun name' command' errptr
@@ -4620,9 +4830,10 @@ foreign import ccall safe "gmshc.h gmshOnelabRun"
       -> CString
       -> Ptr CInt
       -> IO()
-gmshLoggerWrite :: String -> String -> IO()
-gmshLoggerWrite message level = do
+gmshLoggerWrite :: String -> Maybe String -> IO()
+gmshLoggerWrite message levelMaybe = do
    withCString message $ \message' -> do
+      let level = fromMaybe ("info") levelMaybe
       withCString level $ \level' -> do
          alloca $ \errptr -> do
             cgmshLoggerWrite message' level' errptr
