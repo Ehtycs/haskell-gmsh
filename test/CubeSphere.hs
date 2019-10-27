@@ -1,5 +1,5 @@
 {-
-Main.hs
+CubeSphere.hs
 Copyright (C) 2019  Antero Marjamäki
 
 This program is free software; you can redistribute it and/or modify
@@ -38,7 +38,7 @@ addPhys etag (dim, ptag) name = do
 
 buildCubeSphere :: IO()
 buildCubeSphere = do
-   stag <- gmshModelOccAddSphere 0 0 0 0.3 nil nil nil nil -- ((-pi)/2) (pi/2) (2*pi)
+   stag <- gmshModelOccAddSphere 0 0 0 0.3 nil nil nil nil
    ctag <- gmshModelOccAddBox (-0.5) (-0.5) (-0.5) 1 1 1 nil
    (dts, _) <- gmshModelOccFragment [(3,ctag)] [(3,stag)] nil nil nil
    let [(_,tsphere), (_,tcube)] = dts
@@ -77,6 +77,7 @@ main = do
    else
       error "CubeSphere test: Wrong result!"
 
+   -- to see and inspect the model
    --gmshFltkRun
    gmshFinalize
    return ()

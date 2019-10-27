@@ -846,7 +846,6 @@ class API:
             f.write(haskell_header)
             for m in self.modules:
                 m.write_module(f)
-            print("Homma hoitui!")
 
 
 haskell_header = """
