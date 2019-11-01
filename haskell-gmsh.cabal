@@ -20,11 +20,12 @@ library
   extra-libraries:     gmsh
   exposed-modules:     GmshAPI
 
-test-suite test-cube-sphere
+test-suite test-do-ffi-calls
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  main-is:             CubeSphere.hs
+  main-is:             Main.hs
   build-depends:       base
                      , haskell-gmsh
+
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
