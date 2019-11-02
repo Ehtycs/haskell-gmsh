@@ -1,0 +1,40 @@
+name:                haskell-gmsh
+version:             0.1.0.0
+github:              "Ehtycs/haskell-gmsh"
+license:             GPL-2
+author:              "Antero Marjamäki"
+maintainer:          "antero.marjamaki@gmail.com"
+copyright:           "2019 Antero Marjamäki"
+
+extra-source-files:
+- README.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description: Please see github page https://github.com/Ehtycs/haskell-gmsh.
+
+dependencies:
+- base >= 4.7 && < 5
+
+extra-libraries:
+- gmsh
+
+library:
+  source-dirs: src
+  exposed-modules: GmshAPI
+  
+tests:
+  test-do-some-ffi-calls:
+    main:                Main.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - haskell-gmsh
