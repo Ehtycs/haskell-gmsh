@@ -12,7 +12,8 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License ("LICENSE" file) for more details.
 -}
-module Main where
+module CubeSphereTest (cubeSphereMain)
+where
 
 import GmshAPI
 
@@ -36,6 +37,15 @@ addPhys etag (dim, ptag) name = do
    _ <- gmshModelAddPhysicalGroup dim [etag] $ Just ptag
    gmshModelSetPhysicalName dim ptag name
 
+buildCube :: IO()
+buildCube = do
+   ctag <- gmshModelOccAddBox (-0.5) (-0.5) (-0.5) 1 1 1 nil
+   gmshModelOccSynchronize
+   addPhys 1 dtCube "Cube"
+   addPhys 3 dtSouth "South"
+   addPhys 5 dtNorth "North"
+   return ()
+
 buildCubeSphere :: IO()
 buildCubeSphere = do
    stag <- gmshModelOccAddSphere 0 0 0 0.3 nil nil nil nil
@@ -55,13 +65,17 @@ foreach action fun = do
    mapM fun result
 
 -- what the result should be
-resultBf :: [[[Double]]]
-resultBf = [[[0.25,0.25,0.25,0.25]],[[0.25,0.25,0.25,0.25]]]
+resultCubeSphere :: [[[Double]]]
+resultCubeSphere = [[[0.25,0.25,0.25,0.25]],[[0.25,0.25,0.25,0.25]]]
 
-main :: IO ()
-main = do
+cubeSphereMain :: IO ()
+cubeSphereMain = do
    gmshInitialize [] nil
    buildCubeSphere
+   points <- gmshModelGetEntities (Just 0)
+   gmshModelOccSetMeshSize points 0.1
+   gmshModelOccSynchronize
+
    gmshModelMeshGenerate $ Just 3
 
    bfs <- foreach (gmshModelGetEntities $ Just 3) $ \(_,volume) -> do
@@ -72,7 +86,7 @@ main = do
          return basis
 
    putStrLn ""
-   if resultBf == bfs then do
+   if resultCubeSphere == bfs then do
       putStrLn "CubeSphere test: Correct result, didn't explode"
    else
       error "CubeSphere test: Wrong result!"

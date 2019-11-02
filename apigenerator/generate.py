@@ -14,6 +14,9 @@ files = ["CMakeLists.txt",
 
 # download necessary files from GMSH repository
 for f in files:
+    if os.path.exists(f):
+        print(f"{f} exists, skip downloading...")
+        continue
     url = base + f
     cont = urllib.request.urlopen(url).read()
     with open(f, 'wb') as fhandle:
@@ -23,3 +26,5 @@ for f in files:
 # src/GmshAPI.hs.
 sys.path.insert(0,'api')
 import gen
+
+print("done")

@@ -135,7 +135,7 @@ class input_array(arg):
     indent = 1
 
     def foreignexp(self):
-        out = [f"Ptr {self.ctype}", "CInt"]
+        out = [f"Ptr {self.ctype}", "CSize"]
         return out
 
     def ccall_inputs(self):
@@ -153,7 +153,7 @@ class input_arrayarray(arg):
     indent = 2
 
     def foreignexp(self):
-        out = [f"Ptr (Ptr {self.ctype})", "Ptr CInt", "CInt"]
+        out = [f"Ptr (Ptr {self.ctype})", "Ptr CSize", "CSize"]
         return out
 
     def ccall_inputs(self):
@@ -169,7 +169,7 @@ class output_array(oarg):
 
     def foreignexp(self):
         return [f"Ptr ( Ptr {self.ctype})",
-                "Ptr CInt"]
+                "Ptr CSize"]
 
     def ccall_inputs(self):
         n = self.name
@@ -183,8 +183,8 @@ class output_arrayarray(oarg):
 
     def foreignexp(self):
         return [f"Ptr (Ptr (Ptr {self.ctype}))",
-                "Ptr (Ptr CInt)",
-                "Ptr CInt"]
+                "Ptr (Ptr CSize)",
+                "Ptr CSize"]
 
     def ccall_inputs(self):
         n = self.name
@@ -209,7 +209,7 @@ class iint(arg):
 
 class isize(arg):
     htype = "Int"
-    ctype = "CInt"
+    ctype = "CSize"
 
     def _marshall_in(self):
         n = self.name
@@ -253,11 +253,11 @@ class ivectorint(input_array):
 
 class ivectorsize(input_array):
     htype = "[Int]"
-    ctype = "CInt"
+    ctype = "CSize"
 
     def _marshall_in(self):
         n = self.name
-        return [f"withArrayIntLen {n} $ \\{n}_n' {n}' -> do"]
+        return [f"withArraySizeLen {n} $ \\{n}_n' {n}' -> do"]
 
 class ivectordouble(input_array):
     htype = "[Double]"
@@ -291,11 +291,11 @@ class ivectorpair(input_array):
 
 class ivectorvectorsize(input_arrayarray):
     htype = "[[Int]]"
-    ctype = "CInt"
+    ctype = "CSize"
 
     def _marshall_in(self):
         n = self.name
-        return [f"withArrayArrayIntLen {n} $ \\{n}_nn' {n}_n' {n}' -> do"]
+        return [f"withArrayArraySizeLen {n} $ \\{n}_nn' {n}_n' {n}' -> do"]
 
 class ivectorvectordouble(input_arrayarray):
     htype = "[[Double]]"
@@ -326,7 +326,7 @@ class oint(oarg):
 
 class osize(oarg):
     htype = "Int"
-    ctype = "CInt"
+    ctype = "CSize"
 
     indent = 1
 
@@ -389,7 +389,7 @@ class ovectorint(output_array):
 
 class ovectorsize(output_array):
     htype = "[Int]"
-    ctype = "CInt"
+    ctype = "CSize"
 
     indent = 2
 
@@ -400,7 +400,7 @@ class ovectorsize(output_array):
 
     def marshall_out(self):
         n = self.name
-        return [f"{n}'' <- peekArrayInt {n}_n' {n}'"]
+        return [f"{n}'' <- peekArraySize {n}_n' {n}'"]
 
     def return_name(self):
         return f"{self.name}''"
@@ -467,7 +467,7 @@ class ovectorpair(output_array):
 class ovectorvectorsize(output_arrayarray):
     output = True
     htype = "[[Int]]"
-    ctype = "CInt"
+    ctype = "CSize"
 
     indent = 3
 
@@ -479,7 +479,7 @@ class ovectorvectorsize(output_arrayarray):
 
     def marshall_out(self):
         n = self.name
-        return [f"{n}'' <- peekArrayArrayInt {n}_nn' {n}_n' {n}'"]
+        return [f"{n}'' <- peekArrayArraySize {n}_nn' {n}_n' {n}'"]
 
     def return_name(self):
         n = self.name
@@ -891,7 +891,7 @@ withArgv ss f = withMany withCString ss f'
 withArrayArrayLen
    :: (Storable a )
    => [[a]]
-   -> (CInt -> Ptr CInt -> Ptr (Ptr a) -> IO(b))
+   -> (CSize -> Ptr CSize -> Ptr (Ptr a) -> IO(b))
    -> IO (b)
 withArrayArrayLen arr f = do
    let len = fromIntegral $ length arr
@@ -905,47 +905,57 @@ withArrayArrayLen arr f = do
 
 withArrayArrayIntLen
    :: [[Int]]
-   -> (CInt -> Ptr CInt -> Ptr (Ptr CInt) -> IO(b))
+   -> (CSize -> Ptr CSize -> Ptr (Ptr CInt) -> IO(b))
    -> IO (b)
-
 withArrayArrayIntLen arr =
+   let arr' = map (map fromIntegral) arr
+   in withArrayArrayLen arr'
+
+withArrayArraySizeLen
+   :: [[Int]]
+   -> (CSize -> Ptr CSize -> Ptr (Ptr CSize) -> IO(b))
+   -> IO (b)
+withArrayArraySizeLen arr =
    let arr' = map (map fromIntegral) arr
    in withArrayArrayLen arr'
 
 withArrayArrayDoubleLen
    :: [[Double]]
-   -> (CInt -> Ptr CInt -> Ptr (Ptr CDouble) -> IO(b))
+   -> (CSize -> Ptr CSize -> Ptr (Ptr CDouble) -> IO(b))
    -> IO (b)
-
 withArrayArrayDoubleLen arr =
    let arr' = map (map realToFrac) arr
    in withArrayArrayLen arr'
 
-withArrayIntLen :: [Int] -> (CInt -> Ptr CInt -> IO(b)) -> IO(b)
+withArrayIntLen :: [Int] -> (CSize -> Ptr CInt -> IO(b)) -> IO(b)
 withArrayIntLen arr f =
     let arr' = map fromIntegral arr
         f' len ptr = f (fromIntegral len) ptr
     in withArrayLen arr' f'
 
+withArraySizeLen :: [Int] -> (CSize -> Ptr CSize -> IO(b)) -> IO(b)
+withArraySizeLen arr f =
+    let arr' = map fromIntegral arr
+        f' len ptr = f (fromIntegral len) ptr
+    in withArrayLen arr' f'
 
 withArrayPairLen
     :: [(Int, Int)]
-    -> (CInt -> Ptr CInt -> IO(b))
+    -> (CSize -> Ptr CInt -> IO(b))
     -> IO(b)
-
 withArrayPairLen arr f =
     let arr' = map fromIntegral $ pairsToFlat arr
     in
         withArrayLen arr' $ \\narr arr'' -> do
             f (fromIntegral narr) arr''
 
-withArrayDoubleLen :: [Double] -> (CInt -> Ptr CDouble -> IO(b)) -> IO(b)
+withArrayDoubleLen :: [Double] -> (CSize -> Ptr CDouble -> IO(b)) -> IO(b)
 withArrayDoubleLen arr f =
     let arr' = map realToFrac arr
         f' len ptr = f (fromIntegral len) ptr
     in withArrayLen arr' f'
 
-withArrayStringLen :: [String] -> (CInt -> Ptr CString -> IO(b)) -> IO(b)
+withArrayStringLen :: [String] -> (CSize -> Ptr CString -> IO(b)) -> IO(b)
 withArrayStringLen strs f = do
     let len = fromIntegral $ length strs
     withMany withCString strs $ \\marr -> do
@@ -957,9 +967,12 @@ withArrayStringLen strs f = do
 peekInt :: Ptr CInt -> IO(Int)
 peekInt = liftM fromIntegral . peek
 
-peekArrayString :: Ptr CInt -> Ptr (Ptr CString) -> IO([String])
+peekSize :: Ptr CSize -> IO(Int)
+peekSize = liftM fromIntegral . peek
+
+peekArrayString :: Ptr CSize -> Ptr (Ptr CString) -> IO([String])
 peekArrayString nptr arrptr = do
-    nstrs <- peekInt nptr
+    nstrs <- peekSize nptr
     arr <- peek arrptr
     strings <- peekArray nstrs arr
     sequence $ map peekCString strings
@@ -971,28 +984,35 @@ flatToPairs (x:y:[]) = [(x,y)]
 flatToPairs (x:y:xs) = (x,y) : flatToPairs xs
 
 pairsToFlat :: [(a,a)] -> [a]
-pairsToFlat lst = reverse $ foldl (\\acc (a,b) -> b:a:acc) [] lst
+pairsToFlat lst = foldr (\\(a,b) acc -> a:b:acc) [] lst
 
 
 -- Ptr (Ptr CInt) is a serialized list of integers, i.e.
 -- **int is a pointer to an array, not an array of arrays... D'OH!
-peekArrayPairs :: Ptr CInt -> Ptr (Ptr CInt) -> IO([(Int, Int)])
+peekArrayPairs :: Ptr CSize -> Ptr (Ptr CInt) -> IO([(Int, Int)])
 peekArrayPairs nptr arrptr  = do
-  npairs <- peekInt nptr
+  npairs <- peekSize nptr
   arr <- peek arrptr
   flatpairs <- peekArray npairs arr
   return $ flatToPairs $ map fromIntegral flatpairs
 
-peekArrayInt :: Ptr CInt -> Ptr (Ptr CInt) -> IO([Int])
-peekArrayInt nptr arrptr  = do
-  nints <- peekInt nptr
+peekArraySize :: Ptr CSize -> Ptr (Ptr CSize) -> IO([Int])
+peekArraySize nptr arrptr  = do
+  nints <- peekSize nptr
   arr <- peek arrptr
   ints <- peekArray nints arr
   return $ map fromIntegral ints
 
-peekArrayDouble :: Ptr CInt -> Ptr (Ptr CDouble) -> IO([Double])
+peekArrayInt :: Ptr CSize -> Ptr (Ptr CInt) -> IO([Int])
+peekArrayInt nptr arrptr  = do
+  nints <- peekSize nptr
+  arr <- peek arrptr
+  ints <- peekArray nints arr
+  return $ map fromIntegral ints
+
+peekArrayDouble :: Ptr CSize -> Ptr (Ptr CDouble) -> IO([Double])
 peekArrayDouble nptr arrptr  = do
-    nints <- peekInt nptr
+    nints <- peekSize nptr
     arr <- peek arrptr
     ints <- peekArray nints arr
     return $ map realToFrac ints
@@ -1001,15 +1021,15 @@ peekArrayDouble nptr arrptr  = do
 peekArrayArray
     :: (Storable a)
     => ([a] -> [b])
-    -> Ptr CInt
-    -> Ptr (Ptr CInt)
+    -> Ptr CSize
+    -> Ptr (Ptr CSize)
     -> Ptr (Ptr (Ptr a))
     -> IO ([[b]])
 -- Peeks a nested array and uses f to map the
 -- result to correct datatype
 peekArrayArray f nnPtr nPtr arrPtrPtr  =
   do
-    nn <- peekInt nnPtr
+    nn <- peekSize nnPtr
     narr <- peek nPtr
     lens <- peekArray nn narr
     arrPtr <- peek arrPtrPtr
@@ -1017,39 +1037,45 @@ peekArrayArray f nnPtr nPtr arrPtrPtr  =
     -- For each element dereference the pointer
     -- then peek n elements from the array, then advance the outer pointer
     -- accumulate the list of peeked lists, and the advanced pointer
-    (lists,_) <- foldl foldfun (return ([], arrPtr)) $ map fromIntegral lens
+    (lists,_) <- foldr foldfun (return ([], arrPtr)) $ map fromIntegral lens
     return lists
 
   where
     -- foldfun takes the previous IO action and runs it,
     -- then proceeds to peek and advance ptrs and maps the
     -- result using f
-    foldfun action n = do
+    foldfun n action = do
         (acc, ptr) <- action
         aptr <- peek ptr
         lst <- peekArray n aptr
         let out = f lst
-        --let pairss = flatToPairs $ map fromIntegral lst
         let newptr = advancePtr ptr 1
         return ((out:acc), newptr)
 
 peekArrayArrayInt
-  :: Ptr CInt
-  -> Ptr (Ptr CInt)
+  :: Ptr CSize
+  -> Ptr (Ptr CSize)
   -> Ptr (Ptr (Ptr CInt))
   -> IO([[Int]])
 peekArrayArrayInt = peekArrayArray $ map fromIntegral
 
+peekArrayArraySize
+  :: Ptr CSize
+  -> Ptr (Ptr CSize)
+  -> Ptr (Ptr (Ptr CSize))
+  -> IO([[Int]])
+peekArrayArraySize = peekArrayArray $ map fromIntegral
+
 peekArrayArrayDouble
-  :: Ptr CInt
-  -> Ptr (Ptr CInt)
+  :: Ptr CSize
+  -> Ptr (Ptr CSize)
   -> Ptr (Ptr (Ptr CDouble))
   -> IO([[Double]])
 peekArrayArrayDouble = peekArrayArray $ map realToFrac
 
 peekArrayArrayPairs
-  :: Ptr CInt
-  -> Ptr (Ptr CInt)
+  :: Ptr CSize
+  -> Ptr (Ptr CSize)
   -> Ptr (Ptr (Ptr CInt))
   -> IO([[(Int, Int)]])
 peekArrayArrayPairs  = peekArrayArray $ flatToPairs . map fromIntegral
