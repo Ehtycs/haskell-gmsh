@@ -984,7 +984,7 @@ flatToPairs (x:y:[]) = [(x,y)]
 flatToPairs (x:y:xs) = (x,y) : flatToPairs xs
 
 pairsToFlat :: [(a,a)] -> [a]
-pairsToFlat lst = reverse $ foldl (\\acc (a,b) -> b:a:acc) [] lst
+pairsToFlat lst = foldr (\\(a,b) acc -> a:b:acc) [] lst
 
 
 -- Ptr (Ptr CInt) is a serialized list of integers, i.e.
@@ -1037,14 +1037,14 @@ peekArrayArray f nnPtr nPtr arrPtrPtr  =
     -- For each element dereference the pointer
     -- then peek n elements from the array, then advance the outer pointer
     -- accumulate the list of peeked lists, and the advanced pointer
-    (lists,_) <- foldl foldfun (return ([], arrPtr)) $ map fromIntegral lens
+    (lists,_) <- foldr foldfun (return ([], arrPtr)) $ map fromIntegral lens
     return lists
 
   where
     -- foldfun takes the previous IO action and runs it,
     -- then proceeds to peek and advance ptrs and maps the
     -- result using f
-    foldfun action n = do
+    foldfun n action = do
         (acc, ptr) <- action
         aptr <- peek ptr
         lst <- peekArray n aptr
