@@ -1,5 +1,5 @@
 {-
-ViewTest.hs
+CubeSphere.hs
 Copyright (C) 2019  Antero Marjamäki
 
 This program is free software; you can redistribute it and/or modify
@@ -12,15 +12,20 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License ("LICENSE" file) for more details.
 -}
-module ViewTest (viewMain) where
+module CubeTest (cubeMain) where
 
 import GmshAPI
 
 type DimTag = (Int,Int)
 
-dtRectangle :: DimTag
-dtRectangle = (3,2)
-
+dtCube :: DimTag
+dtCube = (3,2)
+dtSphere :: DimTag
+dtSphere = (3,1)
+dtNorth :: DimTag
+dtNorth = (2,3)
+dtSouth :: DimTag
+dtSouth = (2,5)
 
 -- Rename Nothing to nil to shorten the piles of default argument
 nil :: Maybe a
@@ -31,11 +36,13 @@ addPhys etag (dim, ptag) name = do
    _ <- gmshModelAddPhysicalGroup dim [etag] $ Just ptag
    gmshModelSetPhysicalName dim ptag name
 
-buildSquare :: IO()
-buildSquare = do
-   ctag <- gmshModelOccAddRectangle (-0.5) (-0.5) 0 1 1 nil nil
+buildCube :: IO()
+buildCube = do
+   ctag <- gmshModelOccAddBox (-0.5) (-0.5) (-0.5) 1 1 1 nil
    gmshModelOccSynchronize
-   addPhys 1 dtRectangle "Rectangle"
+   addPhys 1 dtCube "Cube"
+   addPhys 3 dtSouth "South"
+   addPhys 5 dtNorth "North"
    return ()
 
 foreach :: IO [a] -> (a -> IO b) -> IO [b]
@@ -43,33 +50,40 @@ foreach action fun = do
    result <- action
    mapM fun result
 
-viewMain :: IO()
-viewMain = do
+testCubeElementTypes :: [Int]
+testCubeElementTypes = [1,2,4,15]
+
+testCubeNumElements :: [Int]
+testCubeNumElements = [12, 24, 24, 14]
+
+cubeMain :: IO()
+cubeMain = do
    gmshInitialize [] nil
-   gmshClear
-   gmshModelAdd "Moi"
-   buildSquare
+   buildCube
    points <- gmshModelGetEntities (Just 0)
    gmshModelOccSetMeshSize points 1.0
    gmshModelOccSynchronize
 
-   gmshModelMeshGenerate $ Just 2
+   gmshModelMeshGenerate $ Just 3
 
-   let field = map (take 3 . repeat) [1,2,3,4,5]
-   view <- gmshViewAdd "View1" Nothing
-   gmshViewAddModelData view 0 "" "NodeData" [1,2,3,4,5] field nil (Just 3) nil
-   daatta <- gmshViewGetModelData view 0
-   print field
+   (etypes,etags ,_) <- gmshModelMeshGetElements Nothing Nothing
+   (ntags,_,_) <- gmshModelMeshGetNodes Nothing Nothing Nothing Nothing
 
-   elements <- gmshModelMeshGetElements (Just 2) (Just 1)
-   print daatta
+   let numElems = map length etags
 
-   gmshFltkRun
-   if daatta /= ("NodeData", [1,2,3,4,5], field, 0, 1)
-      then error "ViewTest failed"
-      else print "ViewTest Ok"
+   print etypes
+   print numElems
+
+   let tests = [ etypes == [1, 2, 4, 15]
+               , numElems == [12, 24, 24, 8]
+               ]
 
    --gmshFltkRun
+   if all id tests then
+      putStrLn "Cube test passed"
+   else
+      error "Cube test failed"
+
+   -- gmshFltkRun
    gmshFinalize
-   putStrLn "View test ran without explosions"
    return ()
