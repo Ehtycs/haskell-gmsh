@@ -71,11 +71,14 @@ cubeMain = do
 
    let numElems = map length etags
 
+   print etypes
+   print numElems
+
    let tests = [ etypes == [1, 2, 4, 15]
                , numElems == [12, 24, 24, 8]
                ]
 
-   --gmshFltkRun
+   gmshFltkRun
    if all id tests then
       putStrLn "Cube test passed"
    else

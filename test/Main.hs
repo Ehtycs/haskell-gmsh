@@ -3,10 +3,12 @@ module Main where
 import CubeSphereTest (cubeSphereMain)
 import CubeTest (cubeMain)
 import ViewTest (viewMain)
+import MarshallerTest (marshallerMain)
 
 main = do
    putStrLn ""
    putStrLn "Running some tests..."
-   cubeMain
-   cubeSphereMain
-   viewMain
+--   cubeMain
+--   cubeSphereMain
+--   viewMain
+   marshallerMain

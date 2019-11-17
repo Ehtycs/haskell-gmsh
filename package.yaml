@@ -27,7 +27,7 @@ extra-libraries:
 library:
   source-dirs: src
   exposed-modules: GmshAPI
-  
+
 tests:
   test-do-some-ffi-calls:
     main:                Main.hs
@@ -38,3 +38,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - haskell-gmsh
+    - hspec

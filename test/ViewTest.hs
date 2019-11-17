@@ -55,12 +55,16 @@ viewMain = do
 
    gmshModelMeshGenerate $ Just 2
 
-   let field = map (:[]) [1,2,3,4,5]
+   let field = map (take 3 . repeat) [1,2,3,4,5]
    view <- gmshViewAdd "View1" Nothing
-   gmshViewAddModelData view 0 "" "NodeData" [1,2,3,4,5] field nil (Just 1) nil
+   gmshViewAddModelData view 0 "" "NodeData" [1,2,3,4,5] field nil (Just 3) nil
    daatta <- gmshViewGetModelData view 0
    print field
-   --gmshFltkRun
+
+   elements <- gmshModelMeshGetElements (Just 2) (Just 1)
+   print daatta
+
+   gmshFltkRun
    if daatta /= ("NodeData", [1,2,3,4,5], field, 0, 1)
       then error "ViewTest failed"
       else print "ViewTest Ok"
