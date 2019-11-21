@@ -39,6 +39,7 @@ tests:
     dependencies:
     - haskell-gmsh
     - hspec
+    - QuickCheck
 
    test-do-some-ffi-calls:
     main:                Main.hs

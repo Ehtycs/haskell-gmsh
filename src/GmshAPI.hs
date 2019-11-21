@@ -1,5 +1,5 @@
-{- 
-GmshAPI.hs - GMSH C API for Haskell. 
+{-
+GmshAPI.hs - GMSH C API for Haskell.
 Api version: 4.4
 GmshAPI.hs - GMSH C API.
 Copyright (C) 2019  Antero Marjamäki
@@ -171,7 +171,7 @@ peekArrayDouble nptr arrptr  = do
 
 
 peekArrayArray
-    :: (Storable a)
+    :: (Storable a, Show b)
     => ([a] -> [b])
     -> Ptr CSize
     -> Ptr (Ptr CSize)
@@ -189,20 +189,20 @@ peekArrayArray f nnPtr nPtr arrPtrPtr  =
     -- For each element dereference the pointer
     -- then peek n elements from the array, then advance the outer pointer
     -- accumulate the list of peeked lists, and the advanced pointer
-    (lists,_) <- foldr foldfun (return ([], arrPtr)) $ map fromIntegral lens
-    return lists
+    (lists,_) <- foldl foldfun (return ([], arrPtr)) $ map fromIntegral lens
+    return $ reverse lists
 
   where
     -- foldfun takes the previous IO action and runs it,
     -- then proceeds to peek and advance ptrs and maps the
     -- result using f
-    foldfun n action = do
-        (acc, ptr) <- action
-        aptr <- peek ptr
-        lst <- peekArray n aptr
-        let out = f lst
-        let newptr = advancePtr ptr 1
-        return ((out:acc), newptr)
+    foldfun action n = do
+      (acc, ptr) <- action
+      aptr <- peek ptr
+      lst <- peekArray n aptr
+      let out = f lst
+      let newptr = advancePtr ptr 1
+      return ((out:acc), newptr)
 
 peekArrayArrayInt
   :: Ptr CSize
@@ -4327,6 +4327,7 @@ gmshViewAddModelData tag step modelName dataType tags daatta timeMaybe numCompon
                   let numComponents' = fromIntegral numComponents
                   let partition = fromMaybe (0) partitionMaybe
                   let partition' = fromIntegral partition
+                  (tag, step, modelName, dataType, tags, daatta, daatta_n', daatta_nn', time', numComponents', partition') `seq` (print "asd")
                   alloca $ \errptr -> do
                      cgmshViewAddModelData tag' step' modelName' dataType' tags' tags_n' daatta' daatta_n' daatta_nn' time' numComponents' partition' errptr
                      checkErrorCodeAndThrow "gmshViewAddModelData" errptr
